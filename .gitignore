@@ -1,0 +1,11 @@
+# JetBrain's PyCharm
+.idea
+
+# Mics files
+*.log
+
+*.json
+*.csv
+
+# Data
+data
