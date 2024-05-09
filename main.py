@@ -1,3 +1,6 @@
+import os.path
+from pathlib import Path
+
 import pandas as pd
 
 from src.logger import app_logger
@@ -14,7 +17,6 @@ def make_dicoperia_metadata(metadata: pd.DataFrame,
     :param remove_samples: a dictionary with the columns and values to remove
     :return: a pandas dataframe with the metadata of the DICOPERIA dataset
     """
-    print('=== Filtering the metadata... ===')
     df = metadata.copy()
 
     if filters_ is None:
@@ -37,11 +39,13 @@ def make_dicoperia_metadata(metadata: pd.DataFrame,
     return df
 
 
-app_logger.info("Loading the COPERIA dataset...")
-METADATA_PATH = r"C:\Users\jmram\OneDrive\Documents\GitHub\exp_coperia\scientificProject\data\coperia_metadata.csv"
+app_logger.info("Initialization of a COPERIA's experiment...")
+ROOT_PATH = Path(__file__).parent
 
 dataset = LocalDataset(name="COPERIA-DATASET")
-dataset.load_metadata_from_csv(METADATA_PATH, decimal=",")
+
+metadata_path = os.path.join(ROOT_PATH, "data", "coperia_metadata.csv")
+dataset.load_metadata_from_csv(metadata_path, decimal=",")
 dataset.transform_metadata([make_dicoperia_metadata])
 
 app_logger.info("Making the subsets...")
@@ -51,3 +55,15 @@ target_label = 'patient_type'
 test_size = 0.2
 k_fold = 3
 seed = 42
+
+dataset_ready_with_1_fold = dataset.make_1_fold_subsets(target_class_for_fold=target_class,
+                                                        target_data_for_fold=target_data,
+                                                        target_label_for_fold=target_label,
+                                                        test_size=test_size,
+                                                        seed=seed)
+
+dataset_ready_with_3_fold = dataset.make_k_fold_subsets(target_class_for_fold=target_class,
+                                                        target_data_for_fold=target_data,
+                                                        target_label_for_fold=target_label,
+                                                        k_fold=k_fold,
+                                                        seed=seed)
