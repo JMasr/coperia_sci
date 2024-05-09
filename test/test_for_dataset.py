@@ -22,7 +22,30 @@ def test_load_metadata_of_dataset_from_a_csv():
     temp_file.unlink()
 
 
-def test_transform_metadata_of_dataset():
+def test_valid_initialization_of_localdataset():
+    # Arrange
+    name = "TEST-DATASET"
+
+    # Act
+    dataset = LocalDataset(name)
+
+    # Assert
+    assert dataset.name == name
+    assert dataset.raw_metadata.empty
+    assert dataset.post_processed_metadata.empty
+    assert dataset.subsets == []
+
+
+def test_invalid_initialization_of_localdataset():
+    # Arrange
+    name = 123
+
+    # Act & Assert
+    with pytest.raises(TypeError):
+        dataset = LocalDataset(name)
+
+
+def test_valid_transformations_over_metadata_in_a_localdataset():
     # Arrange
     temp_file = Path("temp.csv")
     temp_file.write_text('key,value\n1,"2,0"\n2,4\n3,8', encoding="utf-8")
@@ -48,28 +71,7 @@ def test_transform_metadata_of_dataset():
     temp_file.unlink()
 
 
-def test_valid_initialization_of_localdataset():
-    # Arrange
-    name = "TEST-DATASET"
-
-    # Act
-    dataset = LocalDataset(name)
-
-    # Assert
-    assert dataset.name == name
-    assert dataset.raw_metadata.empty
-    assert dataset.post_processed_metadata.empty
-    assert dataset.subsets == []
-
-
-def test_invalid_initialization_of_localdataset():
-    # Arrange
-    name = 123
-
-    # Act & Assert
-    with pytest.raises(TypeError):
-        dataset = LocalDataset(name)
-
+# TODO: The class LocalDataset isn´t fully tested
 
 if __name__ == "__main__":
     # Run all tests in the module
