@@ -27,7 +27,7 @@ class BasicLogger:
             backup_count: int = 3,
     ):
         self.logger = logging.getLogger(log_name)
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(logging.DEBUG)
 
         # Create a formatter to add the time, name, level and message of the log
         formatter = logging.Formatter(
@@ -44,6 +44,7 @@ class BasicLogger:
 
         # Create a stream handler to print logs in the console
         console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
