@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.files import json_file_to_dict
 from src.logger import app_logger
 from src.dataset.basic_dataset import LocalDataset
 
@@ -42,6 +43,20 @@ def make_dicoperia_metadata(metadata: pd.DataFrame,
 app_logger.info("Initialization of a COPERIA's experiment...")
 ROOT_PATH = Path(__file__).parent
 
+app_logger.info("Loading the configurations...")
+
+config_file = os.path.join(ROOT_PATH, "config", "exp_config.json")
+config = json_file_to_dict(config_file)
+
+config_run_experiment = config.get("run")
+target_class = config.get("dataset").get("target_class")
+target_data = config.get("dataset").get("target_data")
+target_label = config.get("dataset").get("target_label")
+
+test_size = config.get("run").get("test_size")
+k_fold = config.get("run").get("k_folds")
+seed = config.get("run").get("seed")
+
 dataset = LocalDataset(name="COPERIA-DATASET")
 
 metadata_path = os.path.join(ROOT_PATH, "data", "coperia_metadata.csv")
@@ -49,12 +64,6 @@ dataset.load_metadata_from_csv(metadata_path, decimal=",")
 dataset.transform_metadata([make_dicoperia_metadata])
 
 app_logger.info("Making the subsets...")
-target_class = 'patient_id'
-target_data = 'audio_id'
-target_label = 'patient_type'
-test_size = 0.2
-k_fold = 3
-seed = 42
 
 dataset_ready_with_1_fold = dataset.make_1_fold_subsets(target_class_for_fold=target_class,
                                                         target_data_for_fold=target_data,
