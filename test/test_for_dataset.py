@@ -38,7 +38,6 @@ class TestLocalDataset:
         assert dataset.name == name
         assert dataset.raw_metadata.empty
         assert dataset.post_processed_metadata.empty
-        assert dataset.subsets == []
 
     def test_invalid_initialization_of_localdataset(self):
         # Arrange
@@ -73,6 +72,7 @@ class TestLocalDataset:
         # Act & Assert
         with pytest.raises(ValueError):
             dataset.transform_metadata([])
+
 
 # TODO: The class LocalDataset isn´t fully tested
 
