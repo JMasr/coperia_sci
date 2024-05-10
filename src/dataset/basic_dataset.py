@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 from sklearn.model_selection import KFold, train_test_split
 
@@ -53,11 +55,26 @@ class LocalDataset:
                 df = self.raw_metadata.copy(deep=False)
                 for index, transformation in enumerate(transformations):
                     df = transformation(df)
-                    app_logger.debug(f"LocalDataset - Transformation #{index +1} finished successfully")
+                    app_logger.debug(f"LocalDataset - Transformation #{index + 1} finished successfully")
 
                 self.post_processed_metadata = df
             except Exception as e:
                 raise MetadataError(f"An error occurred while transforming metadata: {e}")
+
+    def transform_column_id_2_data_path(self,
+                                        column_name: str,
+                                        path: str,
+                                        extension: str):
+        # Check if string path is a valid path
+        if os.path.exists(path) and os.path.isdir(path):
+            path = os.path.abspath(path)
+        # Check if extension has a dot
+        if not extension.startswith("."):
+            extension = "." + extension
+
+        # Transform the column values to data paths
+        self.post_processed_metadata[column_name] = self.post_processed_metadata[column_name].apply(
+            lambda x: os.path.join(path, x + extension))
 
     def make_1_fold_subsets(self,
                             target_class_for_fold: str,
@@ -65,7 +82,7 @@ class LocalDataset:
                             target_label_for_fold: str,
                             test_size: float = 0.2,
                             seed: int = 42
-                            ):
+                            ) -> dict:
         """
         Split the data into train and test subsets. The split is done using a target column.
         For example, patients ids.
@@ -93,20 +110,28 @@ class LocalDataset:
                                                                                       shuffle=True)
 
             # Using the target subsets to select the samples
-            sample_data_train = exp_metadata[(exp_metadata[target_class_for_fold].isin(pat_train))]
+            sample_data_train = exp_metadata.loc[exp_metadata[target_class_for_fold].isin(pat_train)]
             samples_train = sample_data_train[target_data_for_fold]
             labels_train = sample_data_train[target_label_for_fold]
 
-            sample_data_test = exp_metadata[(exp_metadata[target_class_for_fold].isin(pat_test))]
+            sample_data_test = exp_metadata.loc[exp_metadata[target_class_for_fold].isin(pat_test)]
             samples_test = sample_data_test[target_data_for_fold]
             labels_test = sample_data_test[target_label_for_fold]
 
             # Log the lengths of the subsets
             app_logger.debug("LocalDataset - Subsets creation successful")
-            app_logger.debug(f"LocalDataset - Test-set: {len(pat_test)} instance & {len(sample_data_test)} samples")
-            app_logger.debug(f"LocalDataset - Train-set: {len(pat_train):} instance & {len(sample_data_train)} samples")
+            app_logger.debug(
+                f"LocalDataset - Test-set: {pat_test.shape[0]} instance & {sample_data_test.shape[0]} samples")
+            app_logger.debug(
+                f"LocalDataset - Train-set: {pat_train.shape[0]} instance & {sample_data_train.shape[0]} samples")
 
-            return [[samples_train, samples_test, labels_train, labels_test]]
+            return {
+                1: {
+                    'samples_train': samples_train,
+                    'samples_test': samples_test,
+                    'labels_train': labels_train,
+                    'labels_test': labels_test}
+            }
         except Exception as e:
             app_logger.error(f"LocalDataset - The subsets creation fails. Error: {e}")
             raise MetadataError(e)
@@ -116,26 +141,31 @@ class LocalDataset:
                             target_data_for_fold: str,
                             target_label_for_fold: str,
                             k_fold: int,
-                            seed: int):
+                            seed: int) -> dict:
         app_logger.info(f"LocalDataset - Starting the creation of {k_fold}-folds for train and test")
 
         try:
             exp_metadata = self.post_processed_metadata.copy(deep=False)
 
             # Create the KFold object
-            k_folds = []
+            k_folds = {}
             sklearn_k_fold_operator = KFold(n_splits=k_fold, shuffle=True, random_state=seed)
 
             k_folds_index_generator = sklearn_k_fold_operator.split(exp_metadata[target_class_for_fold])
-            for ind, (train_index, test_index) in enumerate(k_folds_index_generator):
+            for fold_index, (train_index, test_index) in enumerate(k_folds_index_generator):
                 # Get the train and test data
                 samples_train = exp_metadata.iloc[train_index][target_data_for_fold]
                 samples_test = exp_metadata.iloc[test_index][target_data_for_fold]
 
-                lable_train = exp_metadata.iloc[train_index][target_label_for_fold]
-                lable_test = exp_metadata.iloc[test_index][target_label_for_fold]
-
-                k_folds.append([samples_train, samples_test, lable_train, lable_test])
+                labels_train = exp_metadata.iloc[train_index][target_label_for_fold]
+                labels_test = exp_metadata.iloc[test_index][target_label_for_fold]
+                # Add fold data to the dictionary
+                k_folds[fold_index] = {
+                    'samples_train': samples_train,
+                    'samples_test': samples_test,
+                    'labels_train': labels_train,
+                    'labels_test': labels_test
+                }
 
             app_logger.info("LocalDataset - K-folds process successful")
             return k_folds
