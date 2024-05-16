@@ -248,12 +248,11 @@ class AudioDataset(LocalDataset):
     def _create_a_feature_extractor(self):
         return FeatureExtractor(arguments=self.config_audio)
 
-    def load_all_wav_files_from_dataset(self,
-                                        column_with_path: str = "audio_id",
-                                        num_cores: int = multiprocessing.cpu_count()):
-
+    def extract_acoustic_features_using_metadata(self,
+                                                 column_with_path: str = "audio_id",
+                                                 num_cores: int = multiprocessing.cpu_count()):
         feature_extractor = self._create_a_feature_extractor()
-        self.raw_wav_data = feature_extractor.load_all_wav_files_from_dataset(dataset=self.post_processed_metadata,
+        dict_ids_to_feats = feature_extractor.load_all_wav_files_from_dataset(dataset=self.post_processed_metadata,
                                                                               name_column_with_path=column_with_path,
                                                                               num_cores=num_cores)
-        return self.raw_wav_data
+        return dict_ids_to_feats
