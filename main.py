@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.logger import app_logger
-from src.files import json_file_to_dict
 from src.dataset.basic_dataset import AudioDataset
+from src.files import json_file_to_dict
+from src.logger import app_logger
 
 
 def make_dicoperia_metadata(metadata: pd.DataFrame,
@@ -64,8 +64,8 @@ if __name__ == "__main__":
     target_class = config_dataset_experiment.get("target_class")
     target_data = config_dataset_experiment.get("target_data")
     target_label = config_dataset_experiment.get("target_label")
+    metadata_path = config_dataset_experiment.get("path_to_csv")
 
-    metadata_path = os.path.join(ROOT_PATH, "data", "coperia_metadata.csv")
     dataset.load_metadata_from_csv(metadata_path, decimal=",")
     dataset.transform_metadata([make_dicoperia_metadata])
     dataset.transform_column_id_2_data_path(column_name="audio_id",
@@ -82,5 +82,5 @@ if __name__ == "__main__":
                                                             k_fold=k_fold,
                                                             seed=seed)
 
-    dataset.load_all_wav_files_from_dataset()
+    dataset.extract_acoustic_features_using_metadata()
     app_logger.info("Saving the subsets...")
