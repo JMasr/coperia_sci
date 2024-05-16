@@ -50,7 +50,6 @@ def csv_file_to_dataframe(str_path_to_csv: str, **kwargs):
     """
     Read a CSV file into a pandas DataFrame.
     :param str_path_to_csv: Path to the CSV file.
-    :param **kwargs: Additional keyword arguments to pass to `pd.read_csv`.
     :return: DataFrame containing the data from the CSV file.
     """
     if (is_str_path_an_existent_file(str_path_to_csv) and
