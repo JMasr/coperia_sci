@@ -243,7 +243,7 @@ class LocalDataset(BaseModel):
 # Create a class child class of LocalDataset with the name "AudioDataset"
 class AudioDataset(LocalDataset):
     config_audio: dict
-    raw_wav_data: dict = {}
+    feat_data: dict = {}
 
     def _create_a_feature_extractor(self):
         return FeatureExtractor(arguments=self.config_audio)
@@ -255,4 +255,7 @@ class AudioDataset(LocalDataset):
         dict_ids_to_feats = feature_extractor.load_all_wav_files_from_dataset(dataset=self.post_processed_metadata,
                                                                               name_column_with_path=column_with_path,
                                                                               num_cores=num_cores)
+        # Create a dictionary of dictionaries with metadata and numpy arrays
+        self.feat_data = {id_: {self.config_audio.get("feature_type"): feat} for id_, feat in dict_ids_to_feats.items()}
+
         return dict_ids_to_feats
