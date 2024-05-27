@@ -1,6 +1,7 @@
+from pathlib import Path
+
 import pandas as pd
 import pytest
-from pathlib import Path
 
 from src.files import json_file_to_dict, csv_file_to_dataframe
 
@@ -32,7 +33,7 @@ def test_load_a_non_existent_json():
 def test_load_an_empty_json_file():
     # Create a temporary JSON file
     temp_file = Path("temp.json")
-    temp_file.write_text('')
+    temp_file.write_text("")
 
     # Call the function under test
     with pytest.raises(ValueError):
@@ -45,7 +46,7 @@ def test_load_an_empty_json_file():
 def test_load_an_json_file_with_an_empty_dict():
     # Create a temporary JSON file
     temp_file = Path("temp.json")
-    temp_file.write_text('{}')
+    temp_file.write_text("{}")
 
     # Call the function under test
     with pytest.raises(ValueError):

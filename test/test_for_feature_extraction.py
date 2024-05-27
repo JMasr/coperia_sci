@@ -2,13 +2,12 @@ import multiprocessing
 import os
 import shutil
 
-import test
-import pytest
 import librosa
-
 import numpy as np
+import pytest
 import soundfile as sf
 
+import test
 from src.features.feature_extractor import MultiProcessor
 
 
@@ -18,21 +17,41 @@ class GeneralFeatureExtraction:
         cls.str_path_temp_folder = os.path.join(test.ROOT_PATH, "test", "temp_folder")
         os.makedirs(cls.str_path_temp_folder, exist_ok=True)
 
-        cls.codec = 'PCM_24'
+        cls.codec = "PCM_24"
         cls.sample_rate = 16000
 
-        cls.path_to_dummy_valid_signal = os.path.join(cls.str_path_temp_folder, "valid_dummy_wav.wav")
+        cls.path_to_dummy_valid_signal = os.path.join(
+            cls.str_path_temp_folder, "valid_dummy_wav.wav"
+        )
         valid_dummy_signal = np.random.uniform(-1, 1, size=(cls.sample_rate * 10, 2))
-        sf.write(cls.path_to_dummy_valid_signal, valid_dummy_signal, cls.sample_rate, subtype=cls.codec)
-        cls.valid_dummy_raw_data = librosa.load(cls.path_to_dummy_valid_signal, sr=None, mono=True)
+        sf.write(
+            cls.path_to_dummy_valid_signal,
+            valid_dummy_signal,
+            cls.sample_rate,
+            subtype=cls.codec,
+        )
+        cls.valid_dummy_raw_data = librosa.load(
+            cls.path_to_dummy_valid_signal, sr=None, mono=True
+        )
 
-        cls.path_to_dummy_empty_signal = os.path.join(cls.str_path_temp_folder, "empty_dummy_wav.wav")
+        cls.path_to_dummy_empty_signal = os.path.join(
+            cls.str_path_temp_folder, "empty_dummy_wav.wav"
+        )
         empty_dummy_signal = np.zeros((cls.sample_rate * 10, 2))
-        sf.write(cls.path_to_dummy_empty_signal, empty_dummy_signal, cls.sample_rate, subtype=cls.codec)
-        cls.empty_dummy_raw_data = librosa.load(cls.path_to_dummy_empty_signal, sr=None, mono=True)
+        sf.write(
+            cls.path_to_dummy_empty_signal,
+            empty_dummy_signal,
+            cls.sample_rate,
+            subtype=cls.codec,
+        )
+        cls.empty_dummy_raw_data = librosa.load(
+            cls.path_to_dummy_empty_signal, sr=None, mono=True
+        )
 
-        cls.path_to_dummy_invalid_signal = os.path.join(cls.str_path_temp_folder, "invalid_dummy_wav.wav")
-        with open(cls.path_to_dummy_invalid_signal, 'w') as f:
+        cls.path_to_dummy_invalid_signal = os.path.join(
+            cls.str_path_temp_folder, "invalid_dummy_wav.wav"
+        )
+        with open(cls.path_to_dummy_invalid_signal, "w") as f:
             f.write("This is not a valid wav file")
 
     @classmethod
@@ -90,8 +109,12 @@ class TestMultiProcessor(GeneralFeatureExtraction):
         # Assert
         assert multi_processor.num_cores == num_cores
 
-    @pytest.mark.parametrize("num_cores", [0, -1, -2, multiprocessing.cpu_count() * 2, "string"])
-    def test_invalid_initialization_of_multiprocessor_because_number_of_cores(self, num_cores):
+    @pytest.mark.parametrize(
+        "num_cores", [0, -1, -2, multiprocessing.cpu_count() * 2, "string"]
+    )
+    def test_invalid_initialization_of_multiprocessor_because_number_of_cores(
+            self, num_cores
+    ):
         # Act & Assert
         with pytest.raises(ValueError):
             MultiProcessor(num_cores=num_cores)
@@ -102,35 +125,44 @@ class TestMultiProcessor(GeneralFeatureExtraction):
 
         # Act & Assert
         with pytest.raises(TypeError):
-            multi_processor.process_with_multiprocessing("string",
-                                                         extract_wav)
+            multi_processor.process_with_multiprocessing("string", extract_wav)
 
         with pytest.raises(TypeError):
-            multi_processor.process_with_multiprocessing([self.path_to_dummy_valid_signal],
-                                                         "string")
+            multi_processor.process_with_multiprocessing(
+                [self.path_to_dummy_valid_signal], "string"
+            )
 
         with pytest.raises(TypeError):
-            multi_processor.process_with_multiprocessing({},
-                                                         extract_wav)
+            multi_processor.process_with_multiprocessing({}, extract_wav)
 
         with pytest.raises(ValueError):
-            multi_processor.process_with_multiprocessing([],
-                                                         extract_wav)
+            multi_processor.process_with_multiprocessing([], extract_wav)
 
     @pytest.mark.parametrize("num_of_raw_data", [1, 10, 20, 100])
     def test_valid_process_with_progress(self, num_of_raw_data):
         # Arrange
         raw_data_paths = []
         for i in range(num_of_raw_data):
-            path_to_dummy_valid_signal = os.path.join(self.str_path_temp_folder, f"valid_dummy_wav_{i}.wav")
-            valid_dummy_signal = np.random.uniform(-1, 1, size=(self.sample_rate * 10, 2))
-            sf.write(path_to_dummy_valid_signal, valid_dummy_signal, self.sample_rate, subtype=self.codec)
+            path_to_dummy_valid_signal = os.path.join(
+                self.str_path_temp_folder, f"valid_dummy_wav_{i}.wav"
+            )
+            valid_dummy_signal = np.random.uniform(
+                -1, 1, size=(self.sample_rate * 10, 2)
+            )
+            sf.write(
+                path_to_dummy_valid_signal,
+                valid_dummy_signal,
+                self.sample_rate,
+                subtype=self.codec,
+            )
             raw_data_paths.append(path_to_dummy_valid_signal)
 
         multi_processor = MultiProcessor(num_cores=multiprocessing.cpu_count())
 
         # Act
-        result = multi_processor.process_with_multiprocessing(raw_data_paths, extract_wav)
+        result = multi_processor.process_with_multiprocessing(
+            raw_data_paths, extract_wav
+        )
 
         # Assert
         assert len(result) == num_of_raw_data
@@ -139,24 +171,32 @@ class TestMultiProcessor(GeneralFeatureExtraction):
 
     def test_invalid_process_with_progress(self):
         # Arrange
-        raw_data_paths_with_empty_file = [self.path_to_dummy_valid_signal,
-                                          self.path_to_dummy_valid_signal,
-                                          self.path_to_dummy_empty_signal,
-                                          self.path_to_dummy_valid_signal, ]
+        raw_data_paths_with_empty_file = [
+            self.path_to_dummy_valid_signal,
+            self.path_to_dummy_valid_signal,
+            self.path_to_dummy_empty_signal,
+            self.path_to_dummy_valid_signal,
+        ]
 
-        raw_data_paths_with_invalid_file = [self.path_to_dummy_valid_signal,
-                                            self.path_to_dummy_valid_signal,
-                                            self.path_to_dummy_invalid_signal,
-                                            self.path_to_dummy_valid_signal, ]
+        raw_data_paths_with_invalid_file = [
+            self.path_to_dummy_valid_signal,
+            self.path_to_dummy_valid_signal,
+            self.path_to_dummy_invalid_signal,
+            self.path_to_dummy_valid_signal,
+        ]
 
         multi_processor = MultiProcessor(num_cores=multiprocessing.cpu_count() - 1)
 
         # Act & Assert
         with pytest.raises(ValueError):
-            multi_processor.process_with_multiprocessing(raw_data_paths_with_empty_file, extract_wav)
+            multi_processor.process_with_multiprocessing(
+                raw_data_paths_with_empty_file, extract_wav
+            )
 
         with pytest.raises(ValueError):
-            multi_processor.process_with_multiprocessing(raw_data_paths_with_invalid_file, extract_wav)
+            multi_processor.process_with_multiprocessing(
+                raw_data_paths_with_invalid_file, extract_wav
+            )
 
 
 if __name__ == "__main__":
