@@ -26,6 +26,29 @@ from tqdm import tqdm
 
 from src.logger import app_logger
 
+SUPPORTED_FEATS = [
+    "mfcc",
+    "compare_2016_llds",
+    "compare_2016_energy",
+    "compare_2016_voicing",
+    "compare_2016_spectral",
+    "compare_2016_mfcc",
+    "compare_2016_rasta",
+    "compare_2016_basic_spectral",
+    "spafe_mfcc",
+    "spafe_imfcc",
+    "spafe_cqcc",
+    "spafe_gfcc",
+    "spafe_lfcc",
+    "spafe_lpc",
+    "spafe_lpcc",
+    "spafe_msrcc",
+    "spafe_ngcc",
+    "spafe_pncc",
+    "spafe_psrcc",
+    "spafe_plp",
+    "spafe_rplp",
+]
 
 class MultiProcessor:
     def __init__(self, num_cores: int = multiprocessing.cpu_count()):
@@ -97,36 +120,11 @@ class MultiProcessor:
 
 class AudioProcessor:
     def __init__(self, arguments: dict):
+        self.supported_feats: list = SUPPORTED_FEATS
         self.arguments = arguments
 
-        self.supported_feats: list = [
-            "MFCC",
-            "MelSpec",
-            "logMelSpec",
-            "ComParE_2016_energy",
-            "ComParE_2016_voicing",
-            "ComParE_2016_spectral",
-            "ComParE_2016_basic_spectral",
-            "ComParE_2016_mfcc",
-            "ComParE_2016_rasta",
-            "ComParE_2016_llds",
-            "Spafe_mfcc",
-            "Spafe_imfcc",
-            "Spafe_cqcc",
-            "Spafe_gfcc",
-            "Spafe_lfcc",
-            "Spafe_lpc",
-            "Spafe_lpcc",
-            "Spafe_msrcc",
-            "Spafe_ngcc",
-            "Spafe_pncc",
-            "Spafe_psrcc",
-            "Spafe_plp",
-            "Spafe_rplp",
-        ]
-
         try:
-            self.feature_type = self.arguments["feature_type"]
+            self.feature_type: str = self.arguments["feature_type"].lower()
             self.resampling_rate = int(self.arguments["resampling_rate"])
             self.top_db = float(self.arguments["top_db"])
             self.resampling_rate = int(self.arguments["resampling_rate"])
@@ -137,9 +135,10 @@ class AudioProcessor:
             self.f_min = int(self.arguments["f_min"])
             self.f_max = int(self.arguments["f_max"])
             self.window_size = int(self.arguments["window_size"])
-            self.hop_length = int(self.arguments["hop_length"])
             self.nfft = int(float(self.window_size) * 1e-3 * self.resampling_rate)
-            self.hop_length = int(float(self.hop_length) * 1e-3 * self.resampling_rate)
+            self.hop_length = int(
+                float(int(self.arguments["hop_length"])) * 1e-3 * self.resampling_rate
+            )
 
             self.n_mels = int(self.arguments["n_mels"])
             self.n_mfcc = int(self.arguments["n_mfcc"])
@@ -156,63 +155,47 @@ class AudioProcessor:
             self.compute_deltas_deltas = bool(
                 self.arguments["compute_deltas_deltas_feats"]
             )
-            self.compute_opensmile_extra_features = bool(
+            self.compute_opensmile_extra_features = False if "compare_2016" in self.feature_type.lower() else bool(
                 self.arguments["compute_opensmile_extra_features"]
             )
 
-            if self.feature_type not in self.supported_feats:
-                raise ValueError(f"Feature type {self.feature_type} not supported yet")
-            else:
+            if self.feature_type.lower() in self.supported_feats:
                 self.feature_transform = self._create_feature_transformer()
-
+            else:
+                raise ValueError(f"Feature type {self.feature_type} not supported yet")
         except Exception as e:
             app_logger.error(f"An error occurred during feature extraction: {str(e)}")
             raise RuntimeError(f"An error occurred during feature extraction: {str(e)}")
 
     def _create_feature_transformer(self):
-        if self.feature_type == "MFCC":
-            feature_transform = torchaudio.transforms.MFCC(
-                sample_rate=self.resampling_rate,
-                n_mfcc=self.n_mfcc,
-                melkwargs={
-                    "n_fft": self.nfft,
-                    "n_mels": self.n_mels,
-                    "f_max": self.f_max,
-                    "hop_length": self.hop_length,
-                },
-            )
-        elif self.feature_type in ["MelSpec", "logMelSpec"]:
-            feature_transform = torchaudio.transforms.MelSpectrogram(
-                sample_rate=self.resampling_rate,
-                n_fft=self.nfft,
-                n_mels=self.n_mels,
-                f_max=self.f_max,
-                hop_length=self.hop_length,
-            )
-        elif "ComParE_2016" in self.feature_type:
+        if "compare_2016" in self.feature_type.lower():
             feature_transform = opensmile.Smile(
                 feature_set=opensmile.FeatureSet.ComParE_2016,
                 feature_level=opensmile.FeatureLevel.LowLevelDescriptors,
                 sampling_rate=self.resampling_rate,
             )
-        elif "Spafe_" in self.feature_type:
+
+        elif (
+                "spafe_" in self.feature_type.lower() or self.feature_type.lower() == "mfcc"
+        ):
             spafe_feature_transformers = {
-                "Spafe_mfcc": mfcc,
-                "Spafe_imfcc": imfcc,
-                "Spafe_bfcc": bfcc,
-                "Spafe_cqcc": cqcc,
-                "Spafe_gfcc": gfcc,
-                "Spafe_lfcc": lfcc,
-                "Spafe_lpc": lpc,
-                "Spafe_lpcc": lpcc,
-                "Spafe_msrcc": msrcc,
-                "Spafe_ngcc": ngcc,
-                "Spafe_pncc": pncc,
-                "Spafe_psrcc": psrcc,
-                "Spafe_plp": plp,
-                "Spafe_rplp": rplp,
+                "spafe_mfcc": mfcc,
+                "spafe_imfcc": imfcc,
+                "spafe_bfcc": bfcc,
+                "spafe_cqcc": cqcc,
+                "spafe_gfcc": gfcc,
+                "spafe_lfcc": lfcc,
+                "spafe_lpc": lpc,
+                "spafe_lpcc": lpcc,
+                "spafe_msrcc": msrcc,
+                "spafe_ngcc": ngcc,
+                "spafe_pncc": pncc,
+                "spafe_psrcc": psrcc,
+                "spafe_plp": plp,
+                "spafe_rplp": rplp,
             }
             feature_transform = spafe_feature_transformers[self.feature_type]
+
         else:
             raise ValueError("Feature type not implemented")
 
@@ -227,25 +210,25 @@ class AudioProcessor:
         """
         matrix_with_feats = None
 
-        if self.feature_type == "MelSpec":
-            matrix_with_feats = self.feature_transform(s)
-
-        if self.feature_type == "logMelSpec":
-            matrix_with_feats = self.feature_transform(s)
-            matrix_with_feats = torchaudio.functional.amplitude_to_DB(
-                matrix_with_feats, amin=1e-10, multiplier=10, db_multiplier=0
+        if self.feature_type.lower() == "mfcc":
+            matrix_with_feats = self.feature_transform(
+                s,
+                sr,
+                num_ceps=self.n_mfcc,
+                low_freq=self.f_min,
+                high_freq=int(sr // 2),
+                nfilts=self.n_mels,
+                nfft=self.nfft,
+                use_energy=self.use_energy,
             )
 
-        if self.feature_type == "MFCC":
-            matrix_with_feats = self.feature_transform(s)
-
-        if "ComParE_2016" in self.feature_type:
+        if "compare_2016" in self.feature_type.lower():
             s = s[None, :]
             matrix_with_feats = self.feature_transform.process_signal(s, sr)
 
             # feature subsets
             opensmile_extra_feats_set = {}
-            if self.feature_type == "ComParE_2016_voicing":
+            if self.feature_type.lower() == "compare_2016_voicing":
                 opensmile_extra_feats_set["subset"] = [
                     "F0final_sma",
                     "voicingFinalUnclipped_sma",
@@ -255,7 +238,7 @@ class AudioProcessor:
                     "logHNR_sma",
                 ]
 
-            if self.feature_type == "ComParE_2016_energy":
+            if self.feature_type.lower() == "compare_2016_energy":
                 opensmile_extra_feats_set["subset"] = [
                     "audspec_lengthL1norm_sma",
                     "audspecRasta_lengthL1norm_sma",
@@ -263,7 +246,7 @@ class AudioProcessor:
                     "pcm_zcr_sma",
                 ]
 
-            if self.feature_type == "ComParE_2016_spectral":
+            if self.feature_type.lower() == "compare_2016_spectral":
                 opensmile_extra_feats_set["subset"] = [
                     "audSpec_Rfilt_sma[0]",
                     "audSpec_Rfilt_sma[1]",
@@ -322,7 +305,7 @@ class AudioProcessor:
                     "mfcc_sma[14]",
                 ]
 
-            if self.feature_type == "ComParE_2016_mfcc":
+            if self.feature_type.lower() == "compare_2016_mfcc":
                 opensmile_extra_feats_set["subset"] = [
                     "mfcc_sma[1]",
                     "mfcc_sma[2]",
@@ -340,7 +323,7 @@ class AudioProcessor:
                     "mfcc_sma[14]",
                 ]
 
-            if self.feature_type == "ComParE_2016_rasta":
+            if self.feature_type == "compare_2016_rasta":
                 opensmile_extra_feats_set["subset"] = [
                     "audSpec_Rfilt_sma[0]",
                     "audSpec_Rfilt_sma[1]",
@@ -370,7 +353,7 @@ class AudioProcessor:
                     "audSpec_Rfilt_sma[25]",
                 ]
 
-            if self.feature_type == "ComParE_2016_basic_spectral":
+            if self.feature_type == "compare_2016_basic_spectral":
                 opensmile_extra_feats_set["subset"] = [
                     "pcm_fftMag_fband250-650_sma",
                     "pcm_fftMag_fband1000-4000_sma",
@@ -389,7 +372,7 @@ class AudioProcessor:
                     "pcm_fftMag_spectralHarmonicity_sma",
                 ]
 
-            if self.feature_type == "ComParE_2016_llds":
+            if self.feature_type == "compare_2016_llds":
                 opensmile_extra_feats_set["subset"] = list(matrix_with_feats.columns)
 
             matrix_with_feats = matrix_with_feats[
@@ -398,15 +381,15 @@ class AudioProcessor:
             matrix_with_feats = np.nan_to_num(matrix_with_feats)
             matrix_with_feats = torch.from_numpy(matrix_with_feats).T
 
-        if "Spafe_" in self.feature_type:
+        if "spafe_" in self.feature_type:
             if self.feature_type in [
-                "Spafe_mfcc",
-                "Spafe_imfcc",
-                "Spafe_gfcc",
-                "Spafe_lfcc",
-                "Spafe_msrcc",
-                "Spafe_ngcc",
-                "Spafe_psrcc",
+                "spafe_mfcc",
+                "spafe_imfcc",
+                "spafe_gfcc",
+                "spafe_lfcc",
+                "spafe_msrcc",
+                "spafe_ngcc",
+                "spafe_psrcc",
             ]:
                 matrix_with_feats = self.feature_transform(
                     s,
@@ -419,7 +402,7 @@ class AudioProcessor:
                     use_energy=self.use_energy,
                 )
 
-            elif self.feature_type in ["Spafe_pncc"]:
+            elif self.feature_type in ["spafe_pncc"]:
                 matrix_with_feats = self.feature_transform(
                     s,
                     sr,
@@ -430,7 +413,7 @@ class AudioProcessor:
                     high_freq=int(sr // 2),
                 )
 
-            elif self.feature_type in ["Spafe_cqcc"]:
+            elif self.feature_type in ["spafe_cqcc"]:
                 matrix_with_feats = self.feature_transform(
                     s,
                     sr,
@@ -441,15 +424,15 @@ class AudioProcessor:
                 )
 
             elif self.feature_type in [
-                "Spafe_lpc",
-                "Spafe_lpcc",
+                "spafe_lpc",
+                "spafe_lpcc",
             ]:
                 matrix_with_feats = self.feature_transform(s, sr, order=self.plp_order)
 
                 if isinstance(matrix_with_feats, tuple):
                     matrix_with_feats = matrix_with_feats[0]
 
-            elif self.feature_type in ["Spafe_plp", "Spafe_rplp"]:
+            elif self.feature_type in ["spafe_plp", "spafe_rplp"]:
                 matrix_with_feats = self.feature_transform(
                     s,
                     sr,
@@ -489,7 +472,7 @@ class AudioProcessor:
 
         # own feature selection
         if self.compute_opensmile_extra_features and (
-                "ComParE_2016" not in self.feature_type
+                "compare_2016" not in self.feature_type
         ):
             s = s[None, :]
 
@@ -661,7 +644,7 @@ class AudioProcessor:
         if num_cores is None:
             num_cores = multiprocessing.cpu_count()
 
-        app_logger.info("Feature Extractor - Loading all wav files from the dataset")
+        app_logger.info(f"Feature Extractor - Extracting **{self.feature_type}** from the raw data")
 
         def worker(id_data, raw_data):
             return self.simple_thread_extract_features_from_raw_data(
