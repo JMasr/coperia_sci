@@ -1,5 +1,6 @@
 import multiprocessing
 import os
+import pickle
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,7 @@ import pandas as pd
 from pydantic import BaseModel
 from sklearn.model_selection import KFold, train_test_split
 
+import src.features.audio_processor
 from src.exceptions import MetadataError, AudioProcessingError
 from src.features.audio_processor import AudioProcessor
 from src.logger import app_logger
@@ -45,6 +47,8 @@ class LocalDataset(BaseModel):
     """
 
     name: str
+    storage_path: str
+
     raw_metadata: pd.DataFrame = pd.DataFrame()
     post_processed_metadata: pd.DataFrame = pd.DataFrame()
 
@@ -52,6 +56,32 @@ class LocalDataset(BaseModel):
 
     class Config:
         arbitrary_types_allowed = True
+
+    def save_dataset_as_a_serialized_object(self, path_to_save_the_dataset: str = None):
+        if path_to_save_the_dataset is None:
+            path_to_save_the_dataset = os.path.join(self.storage_path, f"{self.name}.pkl")
+
+        try:
+            with open(path_to_save_the_dataset, "wb") as file:
+                pickle.dump(self, file)
+
+            app_logger.info(f"LocalDataset - The object was saved to {path_to_save_the_dataset}")
+        except Exception as e:
+            app_logger.error(f"LocalDataset - Saving the dataset fails. Error: {e}")
+            raise MetadataError(e)
+
+    def load_dataset_from_a_serialized_object(self, path_to_object: str = None):
+        # Deserialize the object from a file
+        try:
+            if path_to_object is None:
+                path_to_object = os.path.join(self.storage_path, f"{self.name}.pkl")
+            with open(path_to_object, "rb") as file:
+                dataset = pickle.load(file)
+        except Exception as e:
+            app_logger.error(f"LocalDataset - Loading the dataset fails. Error: {e}")
+            raise MetadataError(e)
+
+        return dataset
 
     def load_metadata_from_csv(self, path_to_metadata: str, **kwargs):
         try:
@@ -240,7 +270,9 @@ class LocalDataset(BaseModel):
 
         return self.folds_data
 
-    def make_k_fold_subsets(self, target_class_for_fold: str, k_fold: int, seed: int):
+    def make_k_fold_subsets(
+            self, target_class_for_fold: str, k_fold: int, seed: int
+    ) -> dict:
         app_logger.info(
             f"LocalDataset - Subsets creation- Starting the creation of {k_fold}-folds"
         )
@@ -320,7 +352,9 @@ class AudioDataset(LocalDataset):
             # Create a dictionary of dictionaries with metadata and numpy arrays
             self.raw_audio_data = dict_ids_to_raw_data
 
-            app_logger.info(f"AudioDataset - Loading raw data successful: {len(self.raw_audio_data)} raw examples.")
+            app_logger.info(
+                f"AudioDataset - Loading raw data successful: {len(self.raw_audio_data)} raw examples."
+            )
         except Exception as e:
             app_logger.error(
                 f"AudioDataset - Loading raw data fails. Error: {e}",
@@ -331,14 +365,17 @@ class AudioDataset(LocalDataset):
 
     def extract_acoustic_features(
             self,
+            feat_name: str = None,
             num_cores: int = multiprocessing.cpu_count(),
     ):
+
         if not self.raw_audio_data:
-            app_logger.warning(
-                "AudioDataset - No raw audio data loaded."
-            )
+            app_logger.warning("AudioDataset - No raw audio data loaded.")
             app_logger.info("AudioDataset - Loading raw data using a path.")
             self.load_raw_data_using_a_path()
+
+        if feat_name is not None:
+            self.config_audio["feature_type"] = feat_name
 
         try:
             feature_extractor = self._create_an_audio_processor()
@@ -347,7 +384,7 @@ class AudioDataset(LocalDataset):
                 num_cores=num_cores,
             )
             # Create a dictionary of dictionaries with metadata and numpy arrays
-            self.raw_audio_data = {
+            self.acoustic_feat_data = {
                 id_: {self.config_audio.get("feature_type"): feat}
                 for id_, feat in dict_ids_to_feats.items()
             }
@@ -358,3 +395,35 @@ class AudioDataset(LocalDataset):
             raise AudioProcessingError(e)
 
         return dict_ids_to_feats
+
+    def extract_all_acoustic_features_supported(
+            self,
+            num_cores: int = multiprocessing.cpu_count(),
+    ):
+
+        if not self.raw_audio_data:
+            app_logger.warning("AudioDataset - No raw audio data loaded.")
+            app_logger.info("AudioDataset - Loading raw data using a path.")
+            self.load_raw_data_using_a_path()
+
+        supported_feats = src.features.audio_processor.SUPPORTED_FEATS
+
+        for feat in supported_feats:
+            try:
+                self.config_audio["feature_type"] = feat
+                feature_extractor = self._create_an_audio_processor()
+                dict_ids_to_feats = feature_extractor.extract_features_from_raw_data(
+                    raw_data_matrix=self.raw_audio_data,
+                    num_cores=num_cores,
+                )
+                # Create a dictionary of dictionaries with metadata and numpy arrays
+                self.acoustic_feat_data = {
+                    id_: {self.config_audio.get("feature_type"): feat}
+                    for id_, feat in dict_ids_to_feats.items()
+                }
+            except Exception as e:
+                app_logger.error(
+                    f"AudioDataset - Extracting acoustic features fails. Error: {e}",
+                )
+                raise AudioProcessingError(e)
+        return self.acoustic_feat_data
