@@ -18,7 +18,7 @@ def generate_fake_dataframe_with_n_rows(n: int):
     return pd.DataFrame({"id": ids, "label": labels, "data": data, "gender": genders})
 
 
-class TestLocalDataset:
+class TestLocalDatasetShould:
 
     @classmethod
     def setup_class(cls):
