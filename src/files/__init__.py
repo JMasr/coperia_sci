@@ -1,7 +1,7 @@
 import json
-import pandas as pd
-
 from pathlib import Path
+
+import pandas as pd
 
 
 def is_str_path_an_existent_file(str_path: str) -> bool:
@@ -31,20 +31,22 @@ def json_file_to_dict(str_with_path: str) -> dict:
     :param str_with_path: path to the json file
     :return: dictionary with the configuration
     """
-    if (is_str_path_an_existent_file(str_with_path) and
-            is_str_path_a_file_with_extension(str_with_path, ".json")):
+    try:
         path = Path(str_with_path)
         with path.open("r", encoding="utf-8") as file:
             json_as_dict = json.loads(file.read())
 
-        # Check if the file is empty or has an empty dictionary
         if json_as_dict == {}:
             raise ValueError("The specified file is empty or has an empty dictionary.")
-        else:
-            return json_as_dict
-    else:
-        raise FileNotFoundError("The specified file does not exist or is not a JSON file.")
 
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"File '{str_with_path}' does not exist.") from e
+    except json.JSONDecodeError as e:
+        raise ValueError(f"An error occurred while decoding the JSON file: {e}") from e
+    except Exception as e:
+        raise ValueError(f"An error occurred while reading the JSON file: {e}") from e
+
+    return json_as_dict
 
 def csv_file_to_dataframe(str_path_to_csv: str, **kwargs):
     """
