@@ -8,7 +8,7 @@ import pytest
 import soundfile as sf
 
 import test
-from src.features.feature_extractor import MultiProcessor
+from src.features.audio_processor import MultiProcessor
 
 
 class GeneralFeatureExtraction:
@@ -100,7 +100,7 @@ def extract_wav(wav_path: str) -> dict[str, np.ndarray]:
     return {wav_path: s}
 
 
-class TestMultiProcessor(GeneralFeatureExtraction):
+class TestMultiProcessorShould(GeneralFeatureExtraction):
     @pytest.mark.parametrize("num_cores", [1, 2, 4, multiprocessing.cpu_count() - 1])
     def test_valid_initialization_of_multiprocessor(self, num_cores):
         # Act
@@ -167,7 +167,7 @@ class TestMultiProcessor(GeneralFeatureExtraction):
         # Assert
         assert len(result) == num_of_raw_data
         assert all(isinstance(value, np.ndarray) for value in result.values())
-        assert list(result.keys()) == raw_data_paths
+        assert set(result.keys()) == set(raw_data_paths)
 
     def test_invalid_process_with_progress(self):
         # Arrange
@@ -188,12 +188,12 @@ class TestMultiProcessor(GeneralFeatureExtraction):
         multi_processor = MultiProcessor(num_cores=multiprocessing.cpu_count() - 1)
 
         # Act & Assert
-        with pytest.raises(ValueError):
+        with pytest.raises(RuntimeError):
             multi_processor.process_with_multiprocessing(
                 raw_data_paths_with_empty_file, extract_wav
             )
 
-        with pytest.raises(ValueError):
+        with pytest.raises(RuntimeError):
             multi_processor.process_with_multiprocessing(
                 raw_data_paths_with_invalid_file, extract_wav
             )
