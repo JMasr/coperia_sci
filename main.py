@@ -82,5 +82,6 @@ if __name__ == "__main__":
                                                             k_fold=k_fold,
                                                             seed=seed)
 
-    dataset.extract_acoustic_features_using_metadata()
+    dataset.load_raw_data_using_a_path()
+    dataset.extract_acoustic_features()
     app_logger.info("Saving the subsets...")
