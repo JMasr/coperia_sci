@@ -59,13 +59,17 @@ class LocalDataset(BaseModel):
 
     def save_dataset_as_a_serialized_object(self, path_to_save_the_dataset: str = None):
         if path_to_save_the_dataset is None:
-            path_to_save_the_dataset = os.path.join(self.storage_path, f"{self.name}.pkl")
+            path_to_save_the_dataset = os.path.join(
+                self.storage_path, f"{self.name}.pkl"
+            )
 
         try:
             with open(path_to_save_the_dataset, "wb") as file:
                 pickle.dump(self, file)
 
-            app_logger.info(f"LocalDataset - The object was saved to {path_to_save_the_dataset}")
+            app_logger.info(
+                f"LocalDataset - The object was saved to {path_to_save_the_dataset}"
+            )
         except Exception as e:
             app_logger.error(f"LocalDataset - Saving the dataset fails. Error: {e}")
             raise MetadataError(e)
@@ -331,7 +335,7 @@ class AudioDataset(LocalDataset):
     def _create_an_audio_processor(self):
         return AudioProcessor(arguments=self.config_audio)
 
-    def load_raw_data_using_a_path(
+    def load_raw_data(
             self,
             column_with_path: str = "audio_id",
             num_cores: int = multiprocessing.cpu_count(),

@@ -55,9 +55,7 @@ if __name__ == "__main__":
 
     config_file = os.path.join(ROOT_PATH, "config", "exp_config.json")
     config = json_file_to_dict(config_file)
-
     config_audio = config.get("audio")
-
     config_run_experiment = config.get("run")
     test_size = config.get("run").get("test_size")
     k_fold = config.get("run").get("k_folds")
@@ -69,31 +67,30 @@ if __name__ == "__main__":
     target_data = config_dataset_experiment.get("target_data")
     target_label = config_dataset_experiment.get("target_label")
     metadata_path = config_dataset_experiment.get("path_to_csv")
-    object_path = config_dataset_experiment.get("path_to_object")
+    object_path = config_dataset_experiment.get("path_to_object", False)
 
     if object_path:
         dataset = AudioDataset(name="COPERIA_DATASET",
                                storage_path=os.path.join(ROOT_PATH, "data"),
                                config_audio=config_audio).load_dataset_from_a_serialized_object(object_path)
-        dataset.save_dataset_as_a_serialized_object()
     else:
-        dataset = AudioDataset(name="COPERIA-DATASET", config_audio=config_audio)
+        dataset = AudioDataset(name="COPERIA_DATASET",
+                               storage_path=os.path.join(ROOT_PATH, "data"),
+                               config_audio=config_audio)
+
         dataset.load_metadata_from_csv(metadata_path, decimal=",")
         dataset.transform_metadata([make_dicoperia_metadata])
         dataset.transform_column_id_2_data_path(
             column_name="audio_id", path=dataset_raw_data_path, extension=".wav"
         )
-        app_logger.info("Pipeline - Making the subsets")
 
-        dataset_ready_with_1_fold = dataset.make_1_fold_subsets(
-            target_class_for_fold=target_class,
-            target_label_for_fold=target_label,
-            test_size=test_size,
-            seed=seed,
-        )
-        dataset_ready_with_3_fold = dataset.make_k_fold_subsets(
+        app_logger.info("Pipeline - Making the subsets")
+        dataset.make_k_fold_subsets(
             target_class_for_fold=target_class, k_fold=k_fold, seed=seed
         )
 
-        dataset.load_raw_data_using_a_path()
+        dataset.load_raw_data()
         dataset.save_dataset_as_a_serialized_object()
+
+    dataset.extract_all_acoustic_features_supported()
+    dataset.save_dataset_as_a_serialized_object()

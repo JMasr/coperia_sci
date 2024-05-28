@@ -48,18 +48,24 @@ def json_file_to_dict(str_with_path: str) -> dict:
 
     return json_as_dict
 
+
 def csv_file_to_dataframe(str_path_to_csv: str, **kwargs):
     """
     Read a CSV file into a pandas DataFrame.
     :param str_path_to_csv: Path to the CSV file.
     :return: DataFrame containing the data from the CSV file.
     """
-    if (is_str_path_an_existent_file(str_path_to_csv) and
-            is_str_path_a_file_with_extension(str_path_to_csv, ".csv")):
-        try:
-            dataframe = pd.read_csv(str_path_to_csv, **kwargs)
-            return dataframe
-        except Exception as e:
-            raise ValueError(f"An error occurred while reading the CSV file: {e}")
-    else:
-        raise FileNotFoundError(f"File '{str_path_to_csv}' does not exist or is not a csv file.")
+    if not (
+            is_str_path_an_existent_file(str_path_to_csv)
+            and is_str_path_a_file_with_extension(str_path_to_csv, ".csv")
+    ):
+        raise FileNotFoundError(
+            f"File '{str_path_to_csv}' does not exist or is not a csv file."
+        )
+
+    try:
+        dataframe = pd.read_csv(str_path_to_csv, **kwargs)
+    except Exception as e:
+        raise ValueError(f"An error occurred while reading the CSV file: {e}")
+
+    return dataframe

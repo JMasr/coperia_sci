@@ -27,7 +27,6 @@ from tqdm import tqdm
 from src.logger import app_logger
 
 SUPPORTED_FEATS = [
-    "mfcc",
     "compare_2016_llds",
     "compare_2016_energy",
     "compare_2016_voicing",
@@ -49,6 +48,7 @@ SUPPORTED_FEATS = [
     "spafe_plp",
     "spafe_rplp",
 ]
+
 
 class MultiProcessor:
     def __init__(self, num_cores: int = multiprocessing.cpu_count()):
@@ -155,8 +155,10 @@ class AudioProcessor:
             self.compute_deltas_deltas = bool(
                 self.arguments["compute_deltas_deltas_feats"]
             )
-            self.compute_opensmile_extra_features = False if "compare_2016" in self.feature_type.lower() else bool(
-                self.arguments["compute_opensmile_extra_features"]
+            self.compute_opensmile_extra_features = (
+                False
+                if "compare_2016" in self.feature_type.lower()
+                else bool(self.arguments["compute_opensmile_extra_features"])
             )
 
             if self.feature_type.lower() in self.supported_feats:
@@ -644,7 +646,9 @@ class AudioProcessor:
         if num_cores is None:
             num_cores = multiprocessing.cpu_count()
 
-        app_logger.info(f"Feature Extractor - Extracting **{self.feature_type}** from the raw data")
+        app_logger.info(
+            f"Feature Extractor - Extracting **{self.feature_type}** from the raw data"
+        )
 
         def worker(id_data, raw_data):
             return self.simple_thread_extract_features_from_raw_data(
