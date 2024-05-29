@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from models.model_object import ModelBuilder, SUPPORTED_MODELS
 from src.dataset.basic_dataset import AudioDataset
 from src.files import json_file_to_dict
 from src.logger import app_logger
@@ -70,13 +71,17 @@ if __name__ == "__main__":
     object_path = config_dataset_experiment.get("path_to_object", False)
 
     if object_path:
-        dataset = AudioDataset(name="COPERIA_DATASET",
-                               storage_path=os.path.join(ROOT_PATH, "data"),
-                               config_audio=config_audio).load_dataset_from_a_serialized_object(object_path)
+        dataset = AudioDataset(
+            name="COPERIA_DATASET",
+            storage_path=os.path.join(ROOT_PATH, "data"),
+            config_audio=config_audio,
+        ).load_dataset_from_a_serialized_object(object_path)
     else:
-        dataset = AudioDataset(name="COPERIA_DATASET",
-                               storage_path=os.path.join(ROOT_PATH, "data"),
-                               config_audio=config_audio)
+        dataset = AudioDataset(
+            name="COPERIA_DATASET",
+            storage_path=os.path.join(ROOT_PATH, "data"),
+            config_audio=config_audio,
+        )
 
         dataset.load_metadata_from_csv(metadata_path, decimal=",")
         dataset.transform_metadata([make_dicoperia_metadata])
@@ -92,5 +97,13 @@ if __name__ == "__main__":
         dataset.load_raw_data()
         dataset.save_dataset_as_a_serialized_object()
 
-    dataset.extract_all_acoustic_features_supported()
-    dataset.save_dataset_as_a_serialized_object()
+    # dataset.extract_acoustic_features(feat_name="compare_2016_energy")
+    # dataset.save_dataset_as_a_serialized_object()
+
+    models_names = SUPPORTED_MODELS.keys()
+    for model_name in models_names:
+        model_builder = ModelBuilder(
+            name=model_name,
+            path_to_model=os.path.join(ROOT_PATH, "models"),
+        )
+        model = model_builder.build_model()
