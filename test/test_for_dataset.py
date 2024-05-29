@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +8,7 @@ from faker import Faker
 from pydantic import ValidationError
 
 from src.dataset.basic_dataset import LocalDataset
+from test import ROOT_PATH
 
 
 def generate_fake_dataframe_with_n_rows(n: int):
@@ -22,8 +24,11 @@ class TestLocalDatasetShould:
 
     @classmethod
     def setup_class(cls):
-        # Create a temporary CSV file for testing
-        cls.str_path_temp_file = "temp.csv"
+        # Create a temporary resources for testing
+        cls.str_path_temp_folder = os.path.join(ROOT_PATH, "test", "temp_folder")
+        os.makedirs(cls.str_path_temp_folder, exist_ok=True)
+
+        cls.str_path_temp_file = os.path.join(cls.str_path_temp_folder, "temp_file.csv")
         cls.temp_file = Path(cls.str_path_temp_file)
         cls.fake_dataframe = generate_fake_dataframe_with_n_rows(300)
         cls.fake_dataframe.to_csv(cls.temp_file, index=False, sep=",")
@@ -35,7 +40,9 @@ class TestLocalDatasetShould:
 
     def test_load_metadata_of_dataset_from_a_csv(self):
         # Arrange
-        dataset = LocalDataset(name="TEST-DATASET")
+        dataset = LocalDataset(
+            name="TEST-DATASET", storage_path=self.str_path_temp_folder
+        )
 
         # Act
         dataset.load_metadata_from_csv(self.str_path_temp_file, decimal=",")
@@ -48,7 +55,7 @@ class TestLocalDatasetShould:
         name = "TEST-DATASET"
 
         # Act
-        dataset = LocalDataset(name=name)
+        dataset = LocalDataset(name=name, storage_path=self.str_path_temp_folder)
 
         # Assert
         assert dataset.name == name
@@ -61,12 +68,14 @@ class TestLocalDatasetShould:
 
         # Act & Assert
         with pytest.raises(ValidationError):
-            dataset = LocalDataset(name=name)
+            dataset = LocalDataset(name=name, storage_path=self.str_path_temp_folder)
             print(dataset.name)
 
     def test_valid_transformations_over_metadata_in_a_localdataset(self):
         # Arrange
-        dataset = LocalDataset(name="TEST-DATASET")
+        dataset = LocalDataset(
+            name="TEST-DATASET", storage_path=self.str_path_temp_folder
+        )
         dataset.load_metadata_from_csv(self.str_path_temp_file)
 
         def transformation(df: pd.DataFrame) -> pd.DataFrame:
@@ -87,7 +96,9 @@ class TestLocalDatasetShould:
 
     def test_invalid_empty_transformations_provided_for_localdataset(self):
         # Arrange
-        dataset = LocalDataset(name="TEST-DATASET")
+        dataset = LocalDataset(
+            name="TEST-DATASET", storage_path=self.str_path_temp_folder
+        )
 
         # Act & Assert
         with pytest.raises(ValueError):
@@ -95,7 +106,9 @@ class TestLocalDatasetShould:
 
     def test_valid_subset_making_in_a_localdataset(self):
         # Arrange
-        dataset = LocalDataset(name="TEST-DATASET")
+        dataset = LocalDataset(
+            name="TEST-DATASET", storage_path=self.str_path_temp_folder
+        )
         dataset.load_metadata_from_csv(self.str_path_temp_file)
 
         # Act
@@ -126,7 +139,9 @@ class TestLocalDatasetShould:
     )  # Folds must be multiples of 2 when the dataset has a pair #s of rows
     def test_valid_k_fold_subset_making_in_a_localdataset(self, k_fold: int):
         # Arrange
-        dataset = LocalDataset(name="TEST-DATASET")
+        dataset = LocalDataset(
+            name="TEST-DATASET", storage_path=self.str_path_temp_folder
+        )
         dataset.load_metadata_from_csv(self.str_path_temp_file)
 
         # Act
