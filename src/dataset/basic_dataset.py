@@ -392,6 +392,9 @@ class AudioDataset(LocalDataset):
                 id_: {self.config_audio.get("feature_type"): feat}
                 for id_, feat in dict_ids_to_feats.items()
             }
+
+            # Save the new feat set
+            self.save_dataset_as_a_serialized_object()
         except Exception as e:
             app_logger.error(
                 f"AudioDataset - Extracting acoustic features fails. Error: {e}",
@@ -420,11 +423,16 @@ class AudioDataset(LocalDataset):
                     raw_data_matrix=self.raw_audio_data,
                     num_cores=num_cores,
                 )
+
                 # Create a dictionary of dictionaries with metadata and numpy arrays
                 self.acoustic_feat_data = {
                     id_: {self.config_audio.get("feature_type"): feat}
                     for id_, feat in dict_ids_to_feats.items()
                 }
+
+                # Save the new feat set
+                self.save_dataset_as_a_serialized_object()
+
             except Exception as e:
                 app_logger.error(
                     f"AudioDataset - Extracting acoustic features fails. Error: {e}",
