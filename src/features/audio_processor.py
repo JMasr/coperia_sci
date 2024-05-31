@@ -681,11 +681,11 @@ class AudioProcessor:
                             f"An error occurred during feature extraction: {str(e)}"
                         )
 
-            app_logger.info(
-                "Feature Extractor - All wav files from the dataset were loaded"
-            )
-            return features
-
         except Exception as e:
             app_logger.error(f"An error occurred during feature extraction: {str(e)}")
             raise RuntimeError(f"An error occurred during feature extraction: {str(e)}")
+
+        app_logger.info(
+            "Feature Extractor - Feature extraction completed!"
+        )
+        return features
