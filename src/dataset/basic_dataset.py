@@ -325,6 +325,31 @@ class LocalDataset(BaseModel):
 
         return self.folds_data
 
+    def get_training_data(self, k_flod: int, filter_with_a_column_target_and_values: dict, remove_samples: list):
+        # TODO: Implement this!
+
+        # Pass filters over the data
+        df = self.post_processed_metadata.copy(deep=False)
+
+        if filter_with_a_column_target_and_values is None:
+            filters_ = {'patient_type': ['covid-control', 'covid-persistente']}
+
+        if remove_samples is None:
+            remove_samples = {
+                'audio_id': ['c15e54fc-5290-4652-a3f7-ff3b779bd980', '244b61cc-4fd7-4073-b0d8-7bacd42f6202'],
+                'patient_id': ['coperia-rehab']}
+
+        for key, values in remove_samples.items():
+            df = df[~df[key].isin(values)]
+
+        for key, values in filters_.items():
+            if 'ALL' in values:
+                values = list(df[key].unique())
+
+            df = df[df[key].isin(values)]
+
+        return df
+
 
 # Create a class child class of LocalDataset with the name "AudioDataset"
 class AudioDataset(LocalDataset):
@@ -438,4 +463,5 @@ class AudioDataset(LocalDataset):
                     f"AudioDataset - Extracting acoustic features fails. Error: {e}",
                 )
                 raise AudioProcessingError(e)
+
         return self.acoustic_feat_data
