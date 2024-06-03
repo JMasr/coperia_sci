@@ -11,7 +11,7 @@ from src.dataset.basic_dataset import LocalDataset
 from test import ROOT_PATH
 
 
-def generate_fake_dataframe_with_n_rows(n: int):
+def mock_an_dataframe_with_metadata(n: int):
     fake = Faker()
     ids = [fake.uuid4() for _ in range(n)]
     labels = [fake.boolean() for _ in range(n)]
@@ -30,7 +30,7 @@ class TestLocalDatasetShould:
 
         cls.str_path_temp_file = os.path.join(cls.str_path_temp_folder, "temp_file.csv")
         cls.temp_file = Path(cls.str_path_temp_file)
-        cls.fake_dataframe = generate_fake_dataframe_with_n_rows(300)
+        cls.fake_dataframe = mock_an_dataframe_with_metadata(300)
         cls.fake_dataframe.to_csv(cls.temp_file, index=False, sep=",")
 
     @classmethod

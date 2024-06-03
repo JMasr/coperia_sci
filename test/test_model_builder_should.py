@@ -3,7 +3,7 @@ import shutil
 
 import pytest
 
-from models.model_object import ModelBuilder, SUPPORTED_MODELS
+from model.model_object import ModelBuilder, SUPPORTED_MODELS
 from test import ROOT_PATH
 
 
