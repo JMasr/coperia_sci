@@ -27,8 +27,8 @@ from tqdm import tqdm
 from src.logger import app_logger
 
 SUPPORTED_FEATS = [
-    "compare_2016_llds",
     "compare_2016_energy",
+    "compare_2016_llds",
     "compare_2016_voicing",
     "compare_2016_spectral",
     "compare_2016_mfcc",
@@ -63,7 +63,7 @@ class MultiProcessor:
 
     @staticmethod
     def _parameters_validation_for_multiprocessing(
-            raw_data_paths: List[str], process_func: Callable
+        raw_data_paths: List[str], process_func: Callable
     ):
         if not isinstance(raw_data_paths, list):
             raise TypeError("The `raw_data_paths` argument must be a list.")
@@ -75,20 +75,20 @@ class MultiProcessor:
             raise FileNotFoundError("One or more paths do not exist.")
 
     def _process_with_progress(
-            self, raw_data_paths: List[str], process_func: Callable
+        self, raw_data_paths: List[str], process_func: Callable
     ) -> Dict[str, np.ndarray]:
         results = {}
         with concurrent.futures.ProcessPoolExecutor(
-                max_workers=self.num_cores
+            max_workers=self.num_cores
         ) as executor:
             future_to_data = {
                 executor.submit(process_func, path): path for path in raw_data_paths
             }
             for future in tqdm(
-                    concurrent.futures.as_completed(future_to_data),
-                    total=len(future_to_data),
-                    desc="Processing data",
-                    unit="item",
+                concurrent.futures.as_completed(future_to_data),
+                total=len(future_to_data),
+                desc="Processing data",
+                unit="item",
             ):
                 path = future_to_data[future]
                 try:
@@ -102,7 +102,7 @@ class MultiProcessor:
         return results
 
     def process_with_multiprocessing(
-            self, raw_data_paths: List[str], process_func: Callable
+        self, raw_data_paths: List[str], process_func: Callable
     ) -> Dict[str, np.ndarray]:
         try:
             self._parameters_validation_for_multiprocessing(
@@ -178,7 +178,7 @@ class AudioProcessor:
             )
 
         elif (
-                "spafe_" in self.feature_type.lower() or self.feature_type.lower() == "mfcc"
+            "spafe_" in self.feature_type.lower() or self.feature_type.lower() == "mfcc"
         ):
             spafe_feature_transformers = {
                 "spafe_mfcc": mfcc,
@@ -474,7 +474,7 @@ class AudioProcessor:
 
         # own feature selection
         if self.compute_opensmile_extra_features and (
-                "compare_2016" not in self.feature_type
+            "compare_2016" not in self.feature_type
         ):
             s = s[None, :]
 
@@ -570,7 +570,7 @@ class AudioProcessor:
             raise RuntimeError(f"An error occurred during feature extraction: {str(e)}")
 
     def simple_thread_wav_2_dict_with_path_and_data(
-            self, wav_path: str
+        self, wav_path: str
     ) -> dict[str, ndarray]:
         """
         The code above implements SAD, a pre-emphasis filter with a coefficient of 0.97, and normalization.
@@ -587,7 +587,7 @@ class AudioProcessor:
         return {wav_path: s}
 
     def simple_thread_extract_features_from_raw_data(
-            self, id_data: str, raw_data: ndarray, sampling_rate: int
+        self, id_data: str, raw_data: ndarray, sampling_rate: int
     ) -> dict[str, ndarray]:
         try:
             features = self._do_feature_extraction(raw_data, sampling_rate)
@@ -597,10 +597,10 @@ class AudioProcessor:
         return {id_data: features}
 
     def load_all_wav_files_from_dataset(
-            self,
-            dataset: pd.DataFrame,
-            name_column_with_path: str,
-            num_cores: int = None,
+        self,
+        dataset: pd.DataFrame,
+        name_column_with_path: str,
+        num_cores: int = None,
     ) -> dict:
         app_logger.info("Feature Extractor - Loading all wav files from the dataset")
         if num_cores is None:
@@ -639,9 +639,9 @@ class AudioProcessor:
         return raw_data_matrix
 
     def extract_features_from_raw_data(
-            self,
-            raw_data_matrix: dict[str, np.ndarray],
-            num_cores: int = None,
+        self,
+        raw_data_matrix: dict[str, np.ndarray],
+        num_cores: int = None,
     ) -> dict[str, np.ndarray]:
         if num_cores is None:
             num_cores = multiprocessing.cpu_count()
@@ -657,7 +657,7 @@ class AudioProcessor:
 
         try:
             with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=num_cores
+                max_workers=num_cores
             ) as executor:
                 future_to_id_data = {
                     executor.submit(worker, id_data, raw_data): id_data
@@ -666,8 +666,8 @@ class AudioProcessor:
 
                 features = {}
                 for future in tqdm(
-                        concurrent.futures.as_completed(future_to_id_data),
-                        total=len(future_to_id_data),
+                    concurrent.futures.as_completed(future_to_id_data),
+                    total=len(future_to_id_data),
                 ):
                     id_data = future_to_id_data[future]
                     try:
@@ -685,7 +685,5 @@ class AudioProcessor:
             app_logger.error(f"An error occurred during feature extraction: {str(e)}")
             raise RuntimeError(f"An error occurred during feature extraction: {str(e)}")
 
-        app_logger.info(
-            "Feature Extractor - Feature extraction completed!"
-        )
+        app_logger.info("Feature Extractor - Feature extraction completed!")
         return features
