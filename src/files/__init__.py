@@ -1,7 +1,12 @@
 import json
+import os
+import pickle
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
+
+from logger import app_logger
 
 
 def is_str_path_an_existent_file(str_path: str) -> bool:
@@ -69,3 +74,24 @@ def csv_file_to_dataframe(str_path_to_csv: str, **kwargs):
         raise ValueError(f"An error occurred while reading the CSV file: {e}")
 
     return dataframe
+
+
+def save_as_a_serialized_object(path_to_save: str = None, object_to_save: Any = None):
+    if not isinstance(path_to_save, str):
+        raise ValueError("Insert a valid path to save the data.")
+
+    if object_to_save is None:
+        raise ValueError("Insert a valid object to save the data.")
+
+    try:
+        if ".pkl" not in path_to_save:
+            path_to_save = path_to_save + ".pkl"
+
+        with open(path_to_save, "wb") as file:
+            pickle.dump(object_to_save, file)
+
+        app_logger.info(
+            f"LocalDataset - The object was saved to {path_to_save}"
+        )
+    except Exception as e:
+        raise IOError(f"An error occurred while saving the dataset.") from e
