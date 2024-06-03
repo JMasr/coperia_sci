@@ -3,13 +3,15 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.dataset.basic_dataset import AudioDataset
-from src.files import json_file_to_dict
+from experiment.basic_exp import Experiment
 from src.logger import app_logger
+from src.files import json_file_to_dict
+from src.dataset.basic_dataset import AudioDataset
+from src.model.model_object import SUPPORTED_MODELS, ModelBuilder
 
 
 def make_dicoperia_metadata(
-        metadata: pd.DataFrame, filters_: dict = None, remove_samples: dict = None
+    metadata: pd.DataFrame, filters_: dict = None, remove_samples: dict = None
 ):
     """
     Make a metadata file for the COPERIA dataset filtering some columns
@@ -56,10 +58,12 @@ if __name__ == "__main__":
     config_file = os.path.join(ROOT_PATH, "config", "exp_config.json")
     config = json_file_to_dict(config_file)
     config_audio = config.get("audio")
+
     config_run_experiment = config.get("run")
-    test_size = config.get("run").get("test_size")
-    k_fold = config.get("run").get("k_folds")
     seed = config.get("run").get("seed")
+    k_fold = config.get("run").get("k_folds")
+    test_size = config.get("run").get("test_size")
+    path_to_save_experiment = config_run_experiment.get("path_to_save_experiment")
 
     config_dataset_experiment = config.get("dataset")
     dataset_raw_data_path = config_dataset_experiment.get("raw_data_path")
@@ -71,13 +75,14 @@ if __name__ == "__main__":
 
     if object_path:
         dataset = AudioDataset(
-            name="COPERIA_DATASET",
+            name="COPERIA",
             storage_path=os.path.join(ROOT_PATH, "data"),
             config_audio=config_audio,
         ).load_dataset_from_a_serialized_object(object_path)
+        app_logger.info("Pipeline - Dataset loaded.")
     else:
         dataset = AudioDataset(
-            name="COPERIA_DATASET",
+            name="COPERIA",
             storage_path=os.path.join(ROOT_PATH, "data"),
             config_audio=config_audio,
         )
@@ -88,20 +93,16 @@ if __name__ == "__main__":
             column_name="audio_id", path=dataset_raw_data_path, extension=".wav"
         )
 
-        app_logger.info("Pipeline - Making the subsets")
-        dataset.make_k_fold_subsets(
-            target_class_for_fold=target_class, k_fold=k_fold, seed=seed
-        )
-
         dataset.load_raw_data()
-        dataset.extract_all_acoustic_features_supported()
+        dataset.extract_acoustic_features("compare_2016_energy")
         dataset.save_dataset_as_a_serialized_object()
         app_logger.info("Pipeline - Dataset saved with all the feats")
 
-    # models_names = SUPPORTED_MODELS.keys()
-    # for model_name in models_names:
-    #     model_builder = ModelBuilder(
-    #         name=model_name,
-    #         path_to_model=os.path.join(ROOT_PATH, "models"),
-    #     )
-    #     model = model_builder.build_model()
+    folds = dataset.get_k_subsets(
+        seed=seed,
+        k_fold=k_fold,
+        target_class_for_fold=target_class,
+        target_label_for_fold=target_label,
+        test_size=test_size,
+    )
+
