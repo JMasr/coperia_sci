@@ -8,5 +8,6 @@
 *.csv
 
 # Data
+*.pkl
 data
 /test/temp_folder/
