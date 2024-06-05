@@ -4,13 +4,14 @@ from pathlib import Path
 import pandas as pd
 
 from experiments.basic_exp import BasicExperiment
+from features.audio_processor import SUPPORTED_FEATS
 from src.dataset.basic_dataset import AudioDataset
 from src.files import json_file_to_dict
 from src.logger import app_logger
 
 
 def make_dicoperia_metadata(
-    metadata: pd.DataFrame, filters_: dict = None, remove_samples: dict = None
+        metadata: pd.DataFrame, filters_: dict = None, remove_samples: dict = None
 ):
     """
     Make a metadata file for the COPERIA dataset filtering some columns
@@ -62,7 +63,6 @@ if __name__ == "__main__":
     config_audio = config.get("audio")
     feat_name = config_audio.get("feature_type")
 
-
     config_run_experiment = config.get("run")
     seed = config.get("run").get("seed")
     k_fold = config.get("run").get("k_folds")
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     target_data = config_dataset_experiment.get("target_data")
     target_label = config_dataset_experiment.get("target_label")
     metadata_path = config_dataset_experiment.get("path_to_csv")
-    object_path = config_dataset_experiment.get("path_to_object", False)
+    dataset_object_path = config_dataset_experiment.get("path_to_object", False)
     dataset_raw_data_path = config_dataset_experiment.get("raw_data_path")
 
     config_model_experiment = config.get("model")
@@ -84,17 +84,17 @@ if __name__ == "__main__":
     model_parameters = config_model_experiment.get("parameters")
     model_parameters["random_state"] = seed
 
-    if os.path.exists(object_path):
+    if os.path.exists(dataset_object_path):
         dataset = AudioDataset(
             name=dataset_name,
-            storage_path=os.path.dirname(object_path),
+            storage_path=os.path.dirname(dataset_object_path),
             config_audio=config_audio,
-        ).load_dataset_from_a_serialized_object(object_path)
+        ).load_dataset_from_a_serialized_object(dataset_object_path)
         app_logger.info("Pipeline - Dataset loaded.")
     else:
         dataset = AudioDataset(
             name=dataset_name,
-            storage_path=os.path.dirname(object_path),
+            storage_path=os.path.dirname(dataset_object_path),
             config_audio=config_audio,
         )
 
@@ -109,28 +109,20 @@ if __name__ == "__main__":
         dataset.save_dataset_as_a_serialized_object()
         app_logger.info(f"Pipeline - Dataset saved with {feat_name} features.")
 
-        train_folds, test_folds = dataset.get_k_audio_subsets(
-            target_class_for_fold=target_class,
-            target_label_for_fold=target_label,
-            acoustics_feat_name=feat_name,
-            seed=seed,
-            k_folds=k_fold,
-            test_size=test_size,
-        )
-        app_logger.info(f"Pipeline - {k_fold} Folds created")
-
+    for feat_selected in SUPPORTED_FEATS:
         experiment = BasicExperiment(
-            name=run_name,
             seed=seed,
-            description=f"{dataset_name} experiment with {k_fold} folds",
-            path_to_save_experiment=path_to_save_experiment,
-            folds_train=train_folds,
-            folds_test=test_folds,
-            feature_name=feat_name,
+            name=run_name,
+            dataset=dataset,
+            k_fold=k_fold,
+            test_size=test_size,
+            feature_name=feat_selected,
+            target_class=target_class,
+            target_label=target_label,
             name_model=model_name,
             parameters_model=model_parameters,
+            path_to_save_experiment=path_to_save_experiment,
         )
-        experiment.save_as_a_serialized_object()
-        app_logger.info(f"Pipeline - Experiment saved on {path_to_save_experiment}.")
 
-        model = experiment.training_phase()
+        results_of_training = experiment.run_experiment()
+        del experiment
