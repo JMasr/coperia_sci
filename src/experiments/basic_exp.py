@@ -1,10 +1,8 @@
-import json
 import os.path
 import pickle
 
 import numpy as np
 import torch
-from pydantic import BaseModel
 from sklearn.metrics import (
     roc_auc_score,
     roc_curve,
@@ -15,25 +13,40 @@ from sklearn.metrics import (
 )
 from tqdm import tqdm
 
+from dataset.basic_dataset import AudioDataset
+from exceptions import ExperimentError
 from logger import app_logger
 from model.model_object import ModelBuilder
 
 
-class BasicExperiment(BaseModel):
-    name: str
-    seed: int
-    description: str
-    path_to_save_experiment: str
+class BasicExperiment:
+    def __init__(self, seed: int, name: str,
+                 dataset: AudioDataset, feature_name: str, target_class: str, target_label: str,
+                 k_fold: int, test_size: float,
+                 name_model: str = None, parameters_model: dict = None,
+                 path_to_save_experiment: str = None):
+        self.name = name
+        self.seed = seed
+        self.k_fold = k_fold
+        self.test_size = test_size
+        self.path_to_save_experiment = path_to_save_experiment
 
-    folds_test: dict
-    folds_train: dict
-    feature_name: str
+        self.dataset = dataset
+        self.target_class = target_class
+        self.target_label = target_label
+        self.feature_name = feature_name
 
-    name_model: str
-    parameters_model: dict
+        self.name_model = name_model
+        self.parameters_model = parameters_model
+        self.trained_model = None
+        self.experiments_results = None
+
+    class Config:
+        arbitrary_types_allowed = True
 
     def save_as_a_serialized_object(self):
-        path_to_save = os.path.join(self.path_to_save_experiment, f"{self.name}.pkl")
+        file_name = f"{self.name}_{self.name_model}_{self.feature_name}_{self.seed}_{self.seed}.pkl"
+        path_to_save = os.path.join(self.path_to_save_experiment, file_name)
         pickle.dump(self, open(path_to_save, "wb"))
 
     def make_prediction(self, model, y_feats: list) -> list:
@@ -83,73 +96,75 @@ class BasicExperiment(BaseModel):
         :param model_trained: a model trained using for inference
         :param test_feats: a list of test feats
         :param test_label: a list of test labels
-        :return: a set of performance metrics: confusion matrix, f1 score, f-beta score, precision, recall, and auc score
+        :return: set of performance metrics: confusion matrix, f1 score, f-beta score, precision, recall, and auc score
         """
         # Start testing
-        y_feats, y_true = test_feats, test_label
-        y_score = self.make_prediction(model_trained, y_feats)
+        try:
+            y_feats, y_true = test_feats, test_label
+            y_score = self.make_prediction(model_trained, y_feats)
 
-        # Calculate the auc_score, FP-rate, and TP-rate
-        sklearn_roc_auc_score = roc_auc_score(y_true, y_score)
-        sklear_fpr, sklearn_tpr, n_thresholds = roc_curve(y_true, y_score)
+            # Calculate the auc_score, FP-rate, and TP-rate
+            sklearn_roc_auc_score = roc_auc_score(y_true, y_score)
+            sklear_fpr, sklearn_tpr, n_thresholds = roc_curve(y_true, y_score)
 
-        # Make prediction using a threshold that maximizes the difference between TPR and FPR
-        optimal_idx = np.argmax(sklearn_tpr - sklear_fpr)
-        optimal_threshold = n_thresholds[optimal_idx]
-        y_pred = [1 if scr > optimal_threshold else 0 for scr in y_score]
+            # Make prediction using a threshold that maximizes the difference between TPR and FPR
+            optimal_idx = np.argmax(sklearn_tpr - sklear_fpr)
+            optimal_threshold = n_thresholds[optimal_idx]
+            y_pred = [1 if scr > optimal_threshold else 0 for scr in y_score]
+        except Exception as e:
+            app_logger.error(f"Error making prediction over the test set: {e}")
+            raise ExperimentError(e)
 
-        # Calculate Precision, Recall, F1, and F-beta scores
-        acc = accuracy_score(y_true, y_pred)
-        precision, recall, f_beta, support = precision_recall_fscore_support(
-            y_true, y_pred
-        )
-        f1_scr = f1_score(y_true, y_pred)
-
-        # Calculate Confusion Matrix
-        confusion_mx = confusion_matrix(y_true, y_pred)
-
-        # Calculate the specificity and sensitivity
-        tn, fp, fn, tp = confusion_mx.ravel()
-        sensitivity = tp / (tp + fn)
-        specificity = tn / (tn + fp)
-
-        # Create a dictionary of scores
-        dict_scores = {
-            "model_name": self.name_model,
-            "acc_score": float(acc),
-            "tn": int(tn),
-            "fp": int(fp),
-            "fn": int(fn),
-            "tp": int(tp),
-            "tpr": sklearn_tpr.tolist(),
-            "tnr": sklear_fpr.tolist(),
-            "sensitivity": float(sensitivity),
-            "specificity": float(specificity),
-            "decision_thresholds": n_thresholds.tolist(),
-            "optimal_threshold": float(optimal_threshold),
-            "auc_score": float(sklearn_roc_auc_score),
-            "confusion_matrix": confusion_mx.tolist(),
-            "f1_scr": float(f1_scr),
-            "f_beta": f_beta.tolist(),
-            "precision": precision.tolist(),
-            "recall": recall.tolist(),
-        }
-
-        print("--------------------------------------------")
-        print(
-            "Scoring: Accuracy = {:.2f}, AUC = {:.2f}".format(
-                acc, sklearn_roc_auc_score
+        try:
+            # Calculate Precision, Recall, F1, and F-beta scores
+            acc = accuracy_score(y_true, y_pred)
+            precision, recall, f_beta, support = precision_recall_fscore_support(
+                y_true, y_pred
             )
-        )
-        print(
-            "Scoring: Sensitivity = {:.2f}, specificity = {:.2f}".format(
-                sensitivity, specificity
+            f1_scr = f1_score(y_true, y_pred)
+
+            # Calculate Confusion Matrix
+            confusion_mx = confusion_matrix(y_true, y_pred)
+
+            # Calculate the specificity and sensitivity
+            tn, fp, fn, tp = confusion_mx.ravel()
+            sensitivity = tp / (tp + fn)
+            specificity = tn / (tn + fp)
+
+            # Create a dictionary of scores
+            dict_scores = {
+                "model_name": self.name_model,
+                "acc_score": float(acc),
+                "tn": int(tn),
+                "fp": int(fp),
+                "fn": int(fn),
+                "tp": int(tp),
+                "tpr": sklearn_tpr.tolist(),
+                "tnr": sklear_fpr.tolist(),
+                "sensitivity": float(sensitivity),
+                "specificity": float(specificity),
+                "decision_thresholds": n_thresholds.tolist(),
+                "optimal_threshold": float(optimal_threshold),
+                "auc_score": float(sklearn_roc_auc_score),
+                "confusion_matrix": confusion_mx.tolist(),
+                "f1_scr": float(f1_scr),
+                "f_beta": f_beta.tolist(),
+                "precision": precision.tolist(),
+                "recall": recall.tolist(),
+            }
+            app_logger.info(
+                "Experiment - Scoring: Accuracy = {:.2f}, AUC = {:.2f}".format(acc, sklearn_roc_auc_score)
             )
-        )
-        print("============================================\n")
+            app_logger.info(
+                "Experiment - Scoring: Sensitivity = {:.2f}, specificity = {:.2f}".format(sensitivity, specificity)
+            )
+        except Exception as e:
+            app_logger.error(f"Error calculating the performance metrics: {e}")
+            raise ExperimentError(e)
+
         return dict_scores
 
-    def training_phase(self):
+    def run_experiment(self):
         if self.parameters_model is None or self.name_model is None:
             model_builder = ModelBuilder(name="LogisticRegression")
         else:
@@ -159,22 +174,35 @@ class BasicExperiment(BaseModel):
                 path_to_model=self.path_to_save_experiment,
             )
 
-        for fold in self.folds_train.keys():
-            train_data = self.folds_train[fold]
+        app_logger.info(f"Pipeline - {self.k_fold} Folds initialization...")
+        folds_train, folds_test = self.dataset.get_k_audio_subsets_multiprocess(
+            target_class_for_fold=self.target_class,
+            target_label_for_fold=self.target_label,
+            acoustics_feat_name=self.feature_name,
+            test_size=self.test_size,
+            k_folds=self.k_fold,
+            seed=self.seed,
+        )
+
+        training_results_for_each_fold = {}
+        for fold in folds_train.keys():
+            train_data = folds_train[fold]
 
             model_builder.build_model()
             trained_model = model_builder.train_model(train_data["X"], train_data["y"])
-
-            # Save the model
-            path_to_save_model = os.path.join(
-                self.path_to_save_experiment, f"{self.name}_{fold}.pkl"
-            )
-            pickle.dump(trained_model, open(path_to_save_model, "wb"))
+            self.trained_model = trained_model
 
             # Score the model
+            test_data = folds_test[fold]
             fold_scores_train = self.score_sklearn(
                 trained_model,
-                self.folds_test[fold]["X"],
-                self.folds_test[fold]["y"],
+                test_data["X"],
+                test_data["y"],
             )
-            pretty_score = json.dumps(fold_scores_train, indent=4)
+            training_results_for_each_fold[fold] = fold_scores_train
+
+        self.experiments_results = training_results_for_each_fold
+        app_logger.info(f"Experiment - Training phase completed.")
+
+        self.save_as_a_serialized_object()
+        return training_results_for_each_fold
