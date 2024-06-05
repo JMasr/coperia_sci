@@ -1,7 +1,6 @@
 import multiprocessing
 import os
 import pickle
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -136,7 +135,7 @@ class LocalDataset(BaseModel):
                 )
 
     def transform_column_id_2_data_path(
-        self, column_name: str, path: str, extension: str
+            self, column_name: str, path: str, extension: str
     ):
         # Check if string path is a valid path
         if os.path.exists(path) and os.path.isdir(path):
@@ -152,11 +151,11 @@ class LocalDataset(BaseModel):
 
     @staticmethod
     def get_index_for_1_fold(
-        exp_metadata: pd.DataFrame,
-        target_class_for_fold: str,
-        target_label_for_fold: str,
-        test_size: float = 0.2,
-        seed: int = 42,
+            exp_metadata: pd.DataFrame,
+            target_class_for_fold: str,
+            target_label_for_fold: str,
+            test_size: float = 0.2,
+            seed: int = 42,
     ) -> tuple:
         target_class_data = exp_metadata[
             [target_class_for_fold, target_label_for_fold]
@@ -182,7 +181,7 @@ class LocalDataset(BaseModel):
 
     @staticmethod
     def get_a_series_by_index_and_a_target_class(
-        exp_metadata: pd.DataFrame, index_to_get: np.ndarray, target_class: str
+            exp_metadata: pd.DataFrame, index_to_get: np.ndarray, target_class: str
     ) -> pd.Series:
         """
         Get a subset of the metadata based on the index of the samples and the target class.
@@ -219,11 +218,11 @@ class LocalDataset(BaseModel):
         return samples_filtered
 
     def _make_1_fold_subsets(
-        self,
-        target_class_for_fold: str,
-        target_label_for_fold: str,
-        test_size: float = 0.2,
-        seed: int = 42,
+            self,
+            target_class_for_fold: str,
+            target_label_for_fold: str,
+            test_size: float = 0.2,
+            seed: int = 42,
     ) -> dict:
         """
         Split the data into train and test subsets. The split is done using a target column.
@@ -279,7 +278,7 @@ class LocalDataset(BaseModel):
         return folds_data
 
     def _make_k_fold_subsets(
-        self, target_class_for_fold: str, k_fold: int, seed: int
+            self, target_class_for_fold: str, k_fold: int, seed: int
     ) -> dict:
         app_logger.info(
             f"LocalDataset - Subsets creation- Starting the creation of {k_fold}-folds"
@@ -303,7 +302,7 @@ class LocalDataset(BaseModel):
             )
 
             for fold_index, (train_index, test_index) in enumerate(
-                k_folds_index_generator
+                    k_folds_index_generator
             ):
                 fold_metadata = self.post_processed_metadata.copy(deep=False)
                 fold_metadata["subset"] = "train"
@@ -331,27 +330,39 @@ class LocalDataset(BaseModel):
         return folds_data
 
     def get_k_subsets(
-        self,
-        k_fold: int,
-        target_class_for_fold: str,
-        target_label_for_fold: str,
-        test_size: float,
-        seed: int,
+            self,
+            k_folds: int,
+            test_size: float,
+            target_class_for_fold: str,
+            target_label_for_fold: str,
+            seed: int,
     ) -> dict:
 
-        if k_fold <= 1:
-            fold_data = self._make_1_fold_subsets(
+        if k_folds <= 1:
+            folds_data = self._make_1_fold_subsets(
                 target_class_for_fold, target_label_for_fold, test_size, seed
             )
 
-        elif k_fold >= 2:
-            fold_data = self._make_k_fold_subsets(target_class_for_fold, k_fold, seed)
+        elif k_folds >= 2:
+            folds_data = self._make_k_fold_subsets(target_class_for_fold, k_folds, seed)
         else:
             raise MetadataError(
-                f"The value for the number of folds is invalid: {k_fold}"
+                f"The value for the number of folds is invalid: {k_folds}"
             )
 
-        return fold_data
+        return folds_data
+
+    def get_train_data(self, fold: int = 0):
+        if fold not in self.folds_data:
+            message = f"LocalDataset - The fold {fold} is not available."
+            app_logger.error(message)
+            raise ValueError(message)
+
+        train_data = self.folds_data[fold][self.folds_data[fold]["subset"] == "train"]
+        x_train = train_data.drop(columns=["subset"])
+        y_train = x_train.pop("label")
+
+        return x_train, y_train
 
 
 # Create a class child class of LocalDataset with the name "AudioDataset"
@@ -364,9 +375,9 @@ class AudioDataset(LocalDataset):
         return AudioProcessor(arguments=self.config_audio)
 
     def load_raw_data(
-        self,
-        column_with_path: str = "audio_id",
-        num_cores: int = multiprocessing.cpu_count(),
+            self,
+            column_with_path: str = "audio_id",
+            num_cores: int = multiprocessing.cpu_count(),
     ):
         if self.raw_audio_data and self.raw_audio_data is not None:
             message = "AudioDataset - The raw audio data is already loaded."
@@ -395,10 +406,22 @@ class AudioDataset(LocalDataset):
 
         return dict_ids_to_raw_data
 
+    def _check_if_feat_is_already_extracted(self, feat_name: str):
+        storage_on_disk = os.path.exists(
+            os.path.join(self.storage_path, f"{self.name}_{feat_name}.pkl")
+        )
+
+        # Check that all entrys have the feature
+        storage_on_memory = all(
+            feat_name in feats for feats in self.acoustic_feat_data.values()
+        )
+
+        return storage_on_disk or storage_on_memory
+
     def extract_acoustic_features(
-        self,
-        feat_name: str = None,
-        num_cores: int = multiprocessing.cpu_count(),
+            self,
+            feat_name: str = None,
+            num_cores: int = multiprocessing.cpu_count(),
     ):
 
         if not self.raw_audio_data:
@@ -432,8 +455,8 @@ class AudioDataset(LocalDataset):
         return dict_ids_to_feats
 
     def extract_all_acoustic_features_supported(
-        self,
-        num_cores: int = multiprocessing.cpu_count(),
+            self,
+            num_cores: int = multiprocessing.cpu_count(),
     ):
         if not self.raw_audio_data:
             app_logger.warning("AudioDataset - No raw audio data loaded.")
@@ -450,6 +473,8 @@ class AudioDataset(LocalDataset):
             try:
                 self.config_audio["feature_type"] = feat_name
                 feature_extractor = self._create_an_audio_processor()
+
+                dict_ids_to_feats: dict
                 dict_ids_to_feats = feature_extractor.extract_features_from_raw_data(
                     raw_data_matrix=self.raw_audio_data,
                     num_cores=num_cores,
@@ -470,3 +495,73 @@ class AudioDataset(LocalDataset):
                 raise AudioProcessingError(e)
 
         return self.acoustic_feat_data
+
+    def get_k_audio_subsets(self,
+                            target_class_for_fold: str,
+                            target_label_for_fold: str,
+                            acoustics_feat_name: str,
+                            k_folds: int = 5,
+                            seed: int = 42,
+                            test_size: float = 0.2, ):
+
+        fold_data: dict = self.get_k_subsets(
+            seed=seed,
+            k_folds=k_folds,
+            test_size=test_size,
+            target_class_for_fold=target_class_for_fold,
+            target_label_for_fold=target_label_for_fold,
+        )
+
+        folds_test_ids_to_feats_and_labels = {
+            fold: {} for fold in fold_data.keys()
+        }
+        folds_train_ids_to_feats_and_labels = {
+            fold: {} for fold in fold_data.keys()
+        }
+
+        try:
+            for fold, dataframe in fold_data.items():
+                app_logger.info(f"AudioDataset - Fold {fold} - Making the feats for the fold.")
+                # Get the column with target_label_for_fold and subset
+                test_metadata = dataframe[dataframe["subset"] == "test"][["audio_id", target_label_for_fold]]
+                train_metadata = dataframe[dataframe["subset"] == "train"][["audio_id", target_label_for_fold]]
+
+                test_ids = set(test_metadata["audio_id"])
+                train_ids = set(train_metadata["audio_id"])
+
+                # Check if the feature is already extracted
+                if not self._check_if_feat_is_already_extracted(acoustics_feat_name):
+                    app_logger.info(f"AudioDataset - Feats not found. Extracting the feature {acoustics_feat_name}")
+                    self.extract_acoustic_features(acoustics_feat_name)
+
+                train_feats, train_labels = [], []
+                test_feats, test_labels = [], []
+                for id_, feats_of_id in self.acoustic_feat_data.items():
+                    feat_of_id_sample = np.array(feats_of_id[acoustics_feat_name])
+
+                    label_of_id_sample = dataframe[dataframe["audio_id"] == id_][target_label_for_fold]
+                    label_of_id_sample = np.array([label_of_id_sample] * feat_of_id_sample.shape[0])
+                    label_of_id_sample = label_of_id_sample.reshape(feat_of_id_sample.shape[0], 1)
+
+                    if id_ in set(train_ids):
+                        train_feats.append(feat_of_id_sample)
+                        train_labels.append(label_of_id_sample)
+
+                    elif id_ in set(test_ids):
+                        test_feats.append(feat_of_id_sample)
+                        test_labels.append(label_of_id_sample)
+
+                train_feats = np.vstack(train_feats, dtype=np.float32)
+                train_labels = np.vstack(train_labels, dtype=int)
+
+                test_feats = np.vstack(test_feats, dtype=np.float32)
+                test_labels = np.vstack(test_labels, dtype=int)
+
+                folds_train_ids_to_feats_and_labels[fold] = {"X": train_feats, "y": train_labels}
+                folds_test_ids_to_feats_and_labels[fold] = {"X": test_feats, "y": test_labels}
+
+        except Exception as e:
+            app_logger.error(f"AudioDataset - Error while creating the folds. Error: {e}")
+            raise MetadataError(e)
+
+        return folds_train_ids_to_feats_and_labels, folds_test_ids_to_feats_and_labels
