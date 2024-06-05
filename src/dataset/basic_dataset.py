@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 import pickle
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -439,6 +440,7 @@ class AudioDataset(LocalDataset):
                 num_cores=num_cores,
             )
             # Create a dictionary of dictionaries with metadata and numpy arrays
+            app_logger.info("TESTING LOGGER")
             self.acoustic_feat_data = {
                 id_: {self.config_audio.get("feature_type"): feat}
                 for id_, feat in dict_ids_to_feats.items()
@@ -485,7 +487,9 @@ class AudioDataset(LocalDataset):
                     acoustic_feat_data[id_][feat_name] = feat
 
                 # Save the new feat set
-                feat_path = os.path.join(self.storage_path, f"{self.name}_{feat_name}.pkl")
+                feat_path = os.path.join(
+                    self.storage_path, f"{self.name}_{feat_name}.pkl"
+                )
                 save_as_a_serialized_object(feat_path, acoustic_feat_data)
 
             except Exception as e:
@@ -496,13 +500,80 @@ class AudioDataset(LocalDataset):
 
         return self.acoustic_feat_data
 
-    def get_k_audio_subsets(self,
-                            target_class_for_fold: str,
-                            target_label_for_fold: str,
-                            acoustics_feat_name: str,
-                            k_folds: int = 5,
-                            seed: int = 42,
-                            test_size: float = 0.2, ):
+    @staticmethod
+    def _process_fold(
+            dataframe: pd.DataFrame,
+            fold: int,
+            target_label_for_fold: str,
+            acoustics_feat_name: str,
+            acoustic_feat_data: dict,
+            subset_at_sample_lv: bool = False,
+    ):
+        try:
+            # Get the column with target_label_for_fold and subset
+            test_metadata = dataframe[dataframe["subset"] == "test"][
+                ["audio_id", target_label_for_fold]
+            ]
+            train_metadata = dataframe[dataframe["subset"] == "train"][
+                ["audio_id", target_label_for_fold]
+            ]
+
+            test_ids = set(test_metadata["audio_id"])
+            train_ids = set(train_metadata["audio_id"])
+
+            train_feats, train_labels = [], []
+            test_feats, test_labels = [], []
+            for id_, feats_of_id in acoustic_feat_data.items():
+                feat_of_id_sample = np.array(feats_of_id[acoustics_feat_name])
+
+                label_of_id_sample = dataframe[dataframe["audio_id"] == id_][
+                    target_label_for_fold
+                ]
+                label_of_id_sample = np.array(
+                    [label_of_id_sample] * feat_of_id_sample.shape[0]
+                )
+                label_of_id_sample = label_of_id_sample.reshape(
+                    feat_of_id_sample.shape[0], 1
+                )
+
+                if id_ in set(train_ids):
+                    train_feats.append(feat_of_id_sample)
+                    train_labels.append(label_of_id_sample)
+
+                elif id_ in set(test_ids):
+                    test_feats.append(feat_of_id_sample)
+
+                    if subset_at_sample_lv:
+                        test_labels.append(label_of_id_sample)
+                    else:
+                        test_labels.append(np.array([np.mean(label_of_id_sample)]))
+
+            train_feats = np.vstack(train_feats).astype(np.float32)
+            train_labels = np.vstack(train_labels).astype(int)
+
+            if subset_at_sample_lv:
+                test_feats = np.vstack(test_feats, dtype=np.float32)
+                test_labels = np.vstack(test_labels, dtype=int)
+
+            result = {
+                "train": {"X": train_feats, "y": train_labels},
+                "test": {"X": test_feats, "y": test_labels},
+            }
+
+            return fold, result
+        except Exception as e:
+            raise MetadataError(e)
+
+    def get_k_audio_subsets(
+            self,
+            target_class_for_fold: str,
+            target_label_for_fold: str,
+            acoustics_feat_name: str,
+            k_folds: int = 5,
+            seed: int = 42,
+            test_size: float = 0.2,
+            subset_at_sample_lv: bool = False,
+    ):
 
         fold_data: dict = self.get_k_subsets(
             seed=seed,
@@ -512,56 +583,83 @@ class AudioDataset(LocalDataset):
             target_label_for_fold=target_label_for_fold,
         )
 
-        folds_test_ids_to_feats_and_labels = {
-            fold: {} for fold in fold_data.keys()
-        }
-        folds_train_ids_to_feats_and_labels = {
-            fold: {} for fold in fold_data.keys()
-        }
+        folds_test_ids_to_feats_and_labels = {fold: {} for fold in fold_data.keys()}
+        folds_train_ids_to_feats_and_labels = {fold: {} for fold in fold_data.keys()}
 
         try:
             for fold, dataframe in fold_data.items():
-                app_logger.info(f"AudioDataset - Fold {fold} - Making the feats for the fold.")
-                # Get the column with target_label_for_fold and subset
-                test_metadata = dataframe[dataframe["subset"] == "test"][["audio_id", target_label_for_fold]]
-                train_metadata = dataframe[dataframe["subset"] == "train"][["audio_id", target_label_for_fold]]
+                _, result = self._process_fold(
+                    dataframe,
+                    fold,
+                    target_label_for_fold,
+                    acoustics_feat_name,
+                    self.acoustic_feat_data,
+                    subset_at_sample_lv,
+                )
 
-                test_ids = set(test_metadata["audio_id"])
-                train_ids = set(train_metadata["audio_id"])
-
-                # Check if the feature is already extracted
-                if not self._check_if_feat_is_already_extracted(acoustics_feat_name):
-                    app_logger.info(f"AudioDataset - Feats not found. Extracting the feature {acoustics_feat_name}")
-                    self.extract_acoustic_features(acoustics_feat_name)
-
-                train_feats, train_labels = [], []
-                test_feats, test_labels = [], []
-                for id_, feats_of_id in self.acoustic_feat_data.items():
-                    feat_of_id_sample = np.array(feats_of_id[acoustics_feat_name])
-
-                    label_of_id_sample = dataframe[dataframe["audio_id"] == id_][target_label_for_fold]
-                    label_of_id_sample = np.array([label_of_id_sample] * feat_of_id_sample.shape[0])
-                    label_of_id_sample = label_of_id_sample.reshape(feat_of_id_sample.shape[0], 1)
-
-                    if id_ in set(train_ids):
-                        train_feats.append(feat_of_id_sample)
-                        train_labels.append(label_of_id_sample)
-
-                    elif id_ in set(test_ids):
-                        test_feats.append(feat_of_id_sample)
-                        test_labels.append(label_of_id_sample)
-
-                train_feats = np.vstack(train_feats, dtype=np.float32)
-                train_labels = np.vstack(train_labels, dtype=int)
-
-                test_feats = np.vstack(test_feats, dtype=np.float32)
-                test_labels = np.vstack(test_labels, dtype=int)
-
-                folds_train_ids_to_feats_and_labels[fold] = {"X": train_feats, "y": train_labels}
-                folds_test_ids_to_feats_and_labels[fold] = {"X": test_feats, "y": test_labels}
+                folds_train_ids_to_feats_and_labels[fold] = result["train"]
+                folds_test_ids_to_feats_and_labels[fold] = result["test"]
 
         except Exception as e:
-            app_logger.error(f"AudioDataset - Error while creating the folds. Error: {e}")
+            app_logger.error(
+                f"AudioDataset - Error while creating the folds. Error: {e}"
+            )
+            raise MetadataError(e)
+
+        return folds_train_ids_to_feats_and_labels, folds_test_ids_to_feats_and_labels
+
+    def get_k_audio_subsets_multiprocess(
+            self,
+            target_class_for_fold: str,
+            target_label_for_fold: str,
+            acoustics_feat_name: str,
+            k_folds: int = 5,
+            seed: int = 42,
+            test_size: float = 0.2,
+            subset_at_sample_lv: bool = False
+    ):
+
+        fold_data: dict = self.get_k_subsets(
+            seed=seed,
+            k_folds=k_folds,
+            test_size=test_size,
+            target_class_for_fold=target_class_for_fold,
+            target_label_for_fold=target_label_for_fold,
+        )
+
+        if not self._check_if_feat_is_already_extracted(acoustics_feat_name):
+            app_logger.info(
+                f"AudioDataset - Feats not found. Extracting the feature {acoustics_feat_name}"
+            )
+            self.extract_acoustic_features(acoustics_feat_name)
+
+        folds_train_ids_to_feats_and_labels = {}
+        folds_test_ids_to_feats_and_labels = {}
+
+        try:
+            with ProcessPoolExecutor() as executor:
+                future_to_fold = {
+                    executor.submit(
+                        self._process_fold,
+                        dataframe,
+                        fold,
+                        target_label_for_fold,
+                        acoustics_feat_name,
+                        self.acoustic_feat_data,
+                        subset_at_sample_lv
+                    ): fold
+                    for fold, dataframe in fold_data.items()
+                }
+
+                for future in as_completed(future_to_fold):
+                    fold = future_to_fold[future]
+                    fold, result = future.result()
+                    folds_train_ids_to_feats_and_labels[fold] = result["train"]
+                    folds_test_ids_to_feats_and_labels[fold] = result["test"]
+        except Exception as e:
+            app_logger.error(
+                f"AudioDataset - Error while creating the folds. Error: {e}"
+            )
             raise MetadataError(e)
 
         return folds_train_ids_to_feats_and_labels, folds_test_ids_to_feats_and_labels
