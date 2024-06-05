@@ -3,51 +3,27 @@
           {
             "seed": 40,
             "k_folds": 5,
-            "test_size": 0.2
+            "test_size": 0.2,
+            "run_name": "COPERIA-ALL",
+            "path_to_save_experiment": "C:\\Users\\jmram\\OneDrive\\Documents\\GitHub\\coperia_tdd\\exp"
           },
-  "models":
+  "model":
           {
-              "LogisticRegression": {
-                                      "c": 0.01,
-                                      "max_iter": 40,
-                                      "solver": "liblinear",
-                                      "penalty": "l2",
-                                      "class_weight": "balanced",
-                                      "verbose": true
-              },
-              "RandomForest": {
-                                  "n_estimators": 20,
-                                  "criterion": "gini",
-                                  "max_depth": null,
-                                  "min_samples_split": 2,
-                                  "min_samples_leaf": 1,
-                                  "max_features": "sqrt",
-                                  "class_weight": "balanced",
-                                  "verbose": true
-              },
-              "MLP": {
-                      "learning_rate_init": 0.001,
-                      "alpha": 0.001,
-                      "solver": "adam",
-                      "hidden_layer_sizes": [20, 20],
-                      "max_iter": 500,
-                      "activation": "tanh",
-                      "class_weight": "balanced",
-                      "verbose": true
-              },
-
-                "LinearSVM": {
-                              "c": 0.1,
-                              "tol": 0.001,
-                              "max_iter": 1000,
-                              "class_weight": null,
-                              "verbose": true
-              }
+            "name": "LogisticRegression",
+            "parameters": {
+              "C": 0.1,
+              "tol": 0.001,
+              "max_iter": 1000,
+              "class_weight": null,
+              "verbose": true
+            }
           },
   "dataset":
           {
-            "path_to_csv": "/home/jmramirez/Documents/GitHub/basic_tdd_repo/data/coperia_metadata.csv",
-            "raw_data_path": "/home/jmramirez/Documents/GitHub/basic_tdd_repo/data/COPERIA_DB/dataset/wav_48000kHz",
+            "path_to_object": "C:\\Users\\jmram\\OneDrive\\Documents\\GitHub\\coperia_tdd\\data\\COPERIA.pkl",
+            "path_to_csv": "C:\\Users\\jmram\\OneDrive\\Documents\\GitHub\\coperia_tdd\\data\\coperia_metadata",
+            "raw_data_path": "D:\\Documentos\\work\\Proyectos\\2023_02_COPERIA\\COPERIA_DB\\dataset\\wav_48000kHz",
+            "name": "COPERIA",
             "target_data": "audio_id",
             "target_class": "patient_id",
             "target_label": "patient_type",
