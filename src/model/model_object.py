@@ -64,6 +64,7 @@ class ModelBuilder(BaseModel):
 
     seed: int = 42
     model: object = None
+    is_trained: bool = False
     parameters: dict = None
 
     def save_as_a_serialized_object(self, path_to_save: str = None):
@@ -117,4 +118,18 @@ class ModelBuilder(BaseModel):
 
         self.model = model
         app_logger.info(f"ModelBuilder - {self.name} build successfully.")
-        return model
+
+    def train_model(self, X, y):
+        if not self.model:
+            raise ValueError("Model is not built yet. Please build the model first.")
+
+        try:
+            self.model.fit(X, y)
+            self.is_trained = True
+            app_logger.info(f"Model trained successfully.")
+        except Exception as e:
+            message = f"An error occurred while training the model: {e}"
+            app_logger.error(message)
+            raise Exception(message)
+
+        return self.model
