@@ -27,26 +27,27 @@ class BasicLogger:
             backup_count: int = 3,
     ):
         self.logger = logging.getLogger(log_name)
-        self.logger.setLevel(logging.DEBUG)
 
-        # Create a formatter to add the time, name, level and message of the log
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+        if not self.logger.handlers:
+            # Create a formatter to add the time, name, level and message of the log
+            self.logger.setLevel(logging.DEBUG)
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
 
-        # Create a file handler to store logs in a file
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        file_handler = RotatingFileHandler(
-            log_file, maxBytes=max_log_size, backupCount=backup_count
-        )
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+            # Create a file handler to store logs in a file
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            file_handler = RotatingFileHandler(
+                log_file, maxBytes=max_log_size, backupCount=backup_count
+            )
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
 
-        # Create a stream handler to print logs in the console
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
+            # Create a stream handler to print logs in the console
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(logging.INFO)
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
 
     def get_logger(self):
         return self.logger
