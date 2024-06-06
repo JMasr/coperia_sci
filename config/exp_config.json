@@ -1,11 +1,11 @@
 {
   "run":
           {
-            "seed": 40,
+            "seed": 42,
             "k_folds": 5,
             "test_size": 0.2,
             "run_name": "COPERIA-ALL",
-            "path_to_save_experiment": "C:\\Users\\jmram\\OneDrive\\Documents\\GitHub\\coperia_tdd\\exp"
+            "path_to_save_experiment": "/home/visia/Documents/GitHub/coperia_sci/exp"
           },
   "model":
           {
@@ -20,10 +20,10 @@
           },
   "dataset":
           {
-            "path_to_object": "C:\\Users\\jmram\\OneDrive\\Documents\\GitHub\\coperia_tdd\\data\\COPERIA.pkl",
-            "path_to_csv": "C:\\Users\\jmram\\OneDrive\\Documents\\GitHub\\coperia_tdd\\data\\coperia_metadata",
-            "raw_data_path": "D:\\Documentos\\work\\Proyectos\\2023_02_COPERIA\\COPERIA_DB\\dataset\\wav_48000kHz",
-            "name": "COPERIA",
+            "path_to_object": "/home/visia/Documents/GitHub/coperia_sci/exp/COPERIA_DATASET.pkl",
+            "path_to_csv": "/home/visia/Documents/GitHub/coperia_sci/data/coperia_metadata.csv",
+            "raw_data_path": "/home/visia/Documents/GitHub/coperia_sci/data/wav_48000kHz",
+            "name": "COPERIA_DATASET",
             "target_data": "audio_id",
             "target_class": "patient_id",
             "target_label": "patient_type",
@@ -53,7 +53,7 @@
           },
   "audio":
           {
-            "feature_type": "Spafe_rplp",
+            "feature_type": "compare_2016_energy",
             "top_db": 30,
             "pre_emphasis_coefficient": 0.97,
             "resampling_rate": 44100,
