@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 import pickle
+import resource
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -13,6 +14,11 @@ import src.features.audio_processor
 from src.exceptions import MetadataError, AudioProcessingError
 from src.features.audio_processor import AudioProcessor
 from src.logger import app_logger
+
+
+def increase_open_file_limit(new_limit=100000):
+    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, hard_limit))
 
 
 class LocalDataset(BaseModel):
@@ -627,7 +633,9 @@ class AudioDataset(LocalDataset):
         folds_test_ids_to_feats_and_labels = {}
 
         try:
-            with ProcessPoolExecutor() as executor:
+            increase_open_file_limit()
+            max_workers = min(4, k_folds)
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 future_to_fold = {
                     executor.submit(
                         self._process_fold,
