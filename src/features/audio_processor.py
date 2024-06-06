@@ -581,8 +581,7 @@ class AudioProcessor:
 
         # Check if the audio file is empty
         if not s.size or not np.any(s) or np.nan_to_num(s).sum() == 0:
-            app_logger.warning(f"File {wav_path} is empty.")
-            # raise ValueError(f"File {wav_path} is empty.")
+            raise ValueError(f"File {wav_path} is empty.")
 
         return {wav_path: s}
 

@@ -9,3 +9,5 @@ soundfile~=0.12.1
 faker~=24.14.1
 opensmile~=2.5.0
 spafe~=0.3.2
+mlflow~=2.12.2
+requests~=2.26.0

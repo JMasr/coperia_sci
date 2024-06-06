@@ -3,15 +3,16 @@ from pathlib import Path
 
 import pandas as pd
 
-from experiment.basic_exp import Experiment
-from src.logger import app_logger
-from src.files import json_file_to_dict
+from experiments.basic_exp import BasicExperiment
+from features.audio_processor import SUPPORTED_FEATS
+from model.model_object import DEFAULT_CONFIG
 from src.dataset.basic_dataset import AudioDataset
-from src.model.model_object import SUPPORTED_MODELS, ModelBuilder
+from src.files import json_file_to_dict
+from src.logger import app_logger
 
 
 def make_dicoperia_metadata(
-    metadata: pd.DataFrame, filters_: dict = None, remove_samples: dict = None
+        metadata: pd.DataFrame, filters_: dict = None, remove_samples: dict = None
 ):
     """
     Make a metadata file for the COPERIA dataset filtering some columns
@@ -44,7 +45,9 @@ def make_dicoperia_metadata(
         df = df[df[key].isin(values)]
 
     df["patient_type"] = (
-        df["patient_type"].map({"covid-control": 0, "covid-persistente": 1}).astype(int)
+        df["patient_type"]
+        .map({"covid-control": True, "covid-persistente": False})
+        .astype(bool)
     )
     return df
 
@@ -57,33 +60,45 @@ if __name__ == "__main__":
 
     config_file = os.path.join(ROOT_PATH, "config", "exp_config.json")
     config = json_file_to_dict(config_file)
+
     config_audio = config.get("audio")
+    feat_name = config_audio.get("feature_type")
 
     config_run_experiment = config.get("run")
     seed = config.get("run").get("seed")
     k_fold = config.get("run").get("k_folds")
     test_size = config.get("run").get("test_size")
+    run_name = config_run_experiment.get("run_name")
     path_to_save_experiment = config_run_experiment.get("path_to_save_experiment")
 
     config_dataset_experiment = config.get("dataset")
-    dataset_raw_data_path = config_dataset_experiment.get("raw_data_path")
+    dataset_name = config_dataset_experiment.get("name")
     target_class = config_dataset_experiment.get("target_class")
     target_data = config_dataset_experiment.get("target_data")
     target_label = config_dataset_experiment.get("target_label")
     metadata_path = config_dataset_experiment.get("path_to_csv")
-    object_path = config_dataset_experiment.get("path_to_object", False)
+    dataset_object_path = config_dataset_experiment.get("path_to_object", False)
+    dataset_raw_data_path = config_dataset_experiment.get("raw_data_path")
+    filters = config_dataset_experiment.get("filters")
 
-    if object_path:
+    config_model_experiment = config.get("model")
+    model_name = config_model_experiment.get("name")
+    model_parameters = config_model_experiment.get("parameters")
+    model_parameters["random_state"] = seed
+
+    if os.path.exists(dataset_object_path):
         dataset = AudioDataset(
-            name="COPERIA",
-            storage_path=os.path.join(ROOT_PATH, "data"),
+            name=dataset_name,
+            storage_path=os.path.dirname(dataset_object_path),
+            filters=filters[0],
             config_audio=config_audio,
-        ).load_dataset_from_a_serialized_object(object_path)
+        ).load_dataset_from_a_serialized_object(dataset_object_path)
         app_logger.info("Pipeline - Dataset loaded.")
     else:
         dataset = AudioDataset(
-            name="COPERIA",
-            storage_path=os.path.join(ROOT_PATH, "data"),
+            name=dataset_name,
+            filters=filters[0],
+            storage_path=os.path.dirname(dataset_object_path),
             config_audio=config_audio,
         )
 
@@ -94,15 +109,25 @@ if __name__ == "__main__":
         )
 
         dataset.load_raw_data()
-        dataset.extract_acoustic_features("compare_2016_energy")
+        dataset.extract_acoustic_features(feat_name)
         dataset.save_dataset_as_a_serialized_object()
-        app_logger.info("Pipeline - Dataset saved with all the feats")
+        app_logger.info(f"Pipeline - Dataset saved with {feat_name} features.")
 
-    folds = dataset.get_k_subsets(
-        seed=seed,
-        k_fold=k_fold,
-        target_class_for_fold=target_class,
-        target_label_for_fold=target_label,
-        test_size=test_size,
-    )
+    for feat_name in SUPPORTED_FEATS:
+        for model_name in DEFAULT_CONFIG.keys():
+            experiment = BasicExperiment(
+                seed=seed,
+                name=run_name,
+                dataset=dataset,
+                k_fold=k_fold,
+                test_size=test_size,
+                feature_name=feat_name,
+                target_class=target_class,
+                target_label=target_label,
+                name_model=model_name,
+                parameters_model=DEFAULT_CONFIG[model_name],
+                path_to_save_experiment=path_to_save_experiment,
+            )
 
+            experiment.run_experiment()
+            experiment.record_experiment()
