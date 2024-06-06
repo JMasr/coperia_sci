@@ -119,12 +119,12 @@ class ModelBuilder(BaseModel):
         self.model = model
         app_logger.info(f"ModelBuilder - {self.name} build successfully.")
 
-    def train_model(self, X, y):
-        if not self.model:
+    def train_model(self, x, y):
+        if self.model is None:
             raise ValueError("Model is not built yet. Please build the model first.")
 
         try:
-            self.model.fit(X, y)
+            self.model.fit(x, y)
             self.is_trained = True
             app_logger.info(f"Model trained successfully.")
         except Exception as e:
