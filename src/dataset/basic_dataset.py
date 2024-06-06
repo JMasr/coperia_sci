@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from sklearn.model_selection import KFold, train_test_split
 
 import src.features.audio_processor
-from files import save_as_a_serialized_object
 from src.exceptions import MetadataError, AudioProcessingError
 from src.features.audio_processor import AudioProcessor
 from src.logger import app_logger
@@ -50,18 +49,15 @@ class LocalDataset(BaseModel):
 
     name: str
     storage_path: str
-
+    filters: dict = {}
     raw_metadata: pd.DataFrame = pd.DataFrame()
     post_processed_metadata: pd.DataFrame = pd.DataFrame()
 
     class Config:
         arbitrary_types_allowed = True
 
-    def save_dataset_as_a_serialized_object(self, path_to_save_the_dataset: str = None):
-        if path_to_save_the_dataset is None:
-            path_to_save_the_dataset = os.path.join(
-                self.storage_path, f"{self.name}.pkl"
-            )
+    def save_dataset_as_a_serialized_object(self):
+        path_to_save_the_dataset = os.path.join(self.storage_path, f"{self.name}.pkl")
 
         try:
             if os.path.exists(path_to_save_the_dataset):
@@ -408,16 +404,14 @@ class AudioDataset(LocalDataset):
         return dict_ids_to_raw_data
 
     def _check_if_feat_is_already_extracted(self, feat_name: str):
-        storage_on_disk = os.path.exists(
-            os.path.join(self.storage_path, f"{self.name}_{feat_name}.pkl")
-        )
+        is_acoustic_feat_data_valid = len(self.acoustic_feat_data) == len(self.raw_audio_data)
+        has_each_audio_the_feat_requested = all([
+            feat_name in feat_dict.keys()
+            for feat_dict in self.acoustic_feat_data.values()
+        ])
 
-        # Check that all entrys have the feature
-        storage_on_memory = all(
-            feat_name in feats for feats in self.acoustic_feat_data.values()
-        )
-
-        return storage_on_disk or storage_on_memory
+        feat_is_storage_on_memory = has_each_audio_the_feat_requested and is_acoustic_feat_data_valid
+        return feat_is_storage_on_memory
 
     def extract_acoustic_features(
             self,
@@ -440,14 +434,10 @@ class AudioDataset(LocalDataset):
                 num_cores=num_cores,
             )
             # Create a dictionary of dictionaries with metadata and numpy arrays
-            app_logger.info("TESTING LOGGER")
             self.acoustic_feat_data = {
                 id_: {self.config_audio.get("feature_type"): feat}
                 for id_, feat in dict_ids_to_feats.items()
             }
-
-            # Save the new feat set
-            self.save_dataset_as_a_serialized_object()
         except Exception as e:
             app_logger.error(
                 f"AudioDataset - Extracting acoustic features fails. Error: {e}",
@@ -486,11 +476,7 @@ class AudioDataset(LocalDataset):
                 for id_, feat in dict_ids_to_feats.items():
                     acoustic_feat_data[id_][feat_name] = feat
 
-                # Save the new feat set
-                feat_path = os.path.join(
-                    self.storage_path, f"{self.name}_{feat_name}.pkl"
-                )
-                save_as_a_serialized_object(feat_path, acoustic_feat_data)
+                self.save_dataset_as_a_serialized_object()
 
             except Exception as e:
                 app_logger.error(
@@ -521,8 +507,8 @@ class AudioDataset(LocalDataset):
             test_ids = set(test_metadata["audio_id"])
             train_ids = set(train_metadata["audio_id"])
 
-            train_feats, train_labels = [], []
-            test_feats, test_labels = [], []
+            train_feats, train_labels, train_audio_id = [], [], []
+            test_feats, test_labels, test_audio_id = [], [], []
             for id_, feats_of_id in acoustic_feat_data.items():
                 feat_of_id_sample = np.array(feats_of_id[acoustics_feat_name])
 
@@ -539,14 +525,17 @@ class AudioDataset(LocalDataset):
                 if id_ in set(train_ids):
                     train_feats.append(feat_of_id_sample)
                     train_labels.append(label_of_id_sample)
+                    train_audio_id.append(np.array([id_] * feat_of_id_sample.shape[0]))
 
                 elif id_ in set(test_ids):
                     test_feats.append(feat_of_id_sample)
 
                     if subset_at_sample_lv:
                         test_labels.append(label_of_id_sample)
+                        test_audio_id.append(np.array([id_] * feat_of_id_sample.shape[0]))
                     else:
                         test_labels.append(np.array([np.mean(label_of_id_sample)]))
+                        test_audio_id.append(id_)
 
             train_feats = np.vstack(train_feats).astype(np.float32)
             train_labels = np.vstack(train_labels).astype(int)
@@ -556,8 +545,8 @@ class AudioDataset(LocalDataset):
                 test_labels = np.vstack(test_labels, dtype=int)
 
             result = {
-                "train": {"X": train_feats, "y": train_labels},
-                "test": {"X": test_feats, "y": test_labels},
+                "train": {"X": train_feats, "y": train_labels, "audio_id": train_audio_id},
+                "test": {"X": test_feats, "y": test_labels, "audio_id": test_audio_id},
             }
 
             return fold, result
@@ -616,7 +605,7 @@ class AudioDataset(LocalDataset):
             k_folds: int = 5,
             seed: int = 42,
             test_size: float = 0.2,
-            subset_at_sample_lv: bool = False
+            subset_at_sample_lv: bool = False,
     ):
 
         fold_data: dict = self.get_k_subsets(
@@ -627,6 +616,7 @@ class AudioDataset(LocalDataset):
             target_label_for_fold=target_label_for_fold,
         )
 
+        self.config_audio["feature_type"] = acoustics_feat_name
         if not self._check_if_feat_is_already_extracted(acoustics_feat_name):
             app_logger.info(
                 f"AudioDataset - Feats not found. Extracting the feature {acoustics_feat_name}"
@@ -646,13 +636,12 @@ class AudioDataset(LocalDataset):
                         target_label_for_fold,
                         acoustics_feat_name,
                         self.acoustic_feat_data,
-                        subset_at_sample_lv
+                        subset_at_sample_lv,
                     ): fold
                     for fold, dataframe in fold_data.items()
                 }
 
                 for future in as_completed(future_to_fold):
-                    fold = future_to_fold[future]
                     fold, result = future.result()
                     folds_train_ids_to_feats_and_labels[fold] = result["train"]
                     folds_test_ids_to_feats_and_labels[fold] = result["test"]
