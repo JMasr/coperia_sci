@@ -1,7 +1,9 @@
 import os.path
 import pickle
+from typing import Tuple
 
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.metrics import (
     roc_auc_score,
@@ -15,16 +17,26 @@ from tqdm import tqdm
 
 from dataset.basic_dataset import AudioDataset
 from exceptions import ExperimentError
+from experiments.mlflow import MlFlowService
 from logger import app_logger
 from model.model_object import ModelBuilder
 
 
 class BasicExperiment:
-    def __init__(self, seed: int, name: str,
-                 dataset: AudioDataset, feature_name: str, target_class: str, target_label: str,
-                 k_fold: int, test_size: float,
-                 name_model: str = None, parameters_model: dict = None,
-                 path_to_save_experiment: str = None):
+    def __init__(
+            self,
+            seed: int,
+            name: str,
+            dataset: AudioDataset,
+            feature_name: str,
+            target_class: str,
+            target_label: str,
+            k_fold: int,
+            test_size: float,
+            name_model: str = None,
+            parameters_model: dict = None,
+            path_to_save_experiment: str = None,
+    ):
         self.name = name
         self.seed = seed
         self.k_fold = k_fold
@@ -39,13 +51,17 @@ class BasicExperiment:
         self.name_model = name_model
         self.parameters_model = parameters_model
         self.trained_model = None
-        self.experiments_results = None
+
+        self.experiment_performance = None
+        self.experiment_predictions = None
+
+        self.mlflow_service = MlFlowService(uri="http://127.0.0.1", port=5000)
 
     class Config:
         arbitrary_types_allowed = True
 
     def save_as_a_serialized_object(self):
-        file_name = f"{self.name}_{self.name_model}_{self.feature_name}_{self.seed}_{self.seed}.pkl"
+        file_name = f"{self.name}_{self.name_model}_{self.feature_name}_{self.k_fold}_{self.seed}.pkl"
         path_to_save = os.path.join(self.path_to_save_experiment, file_name)
         pickle.dump(self, open(path_to_save, "wb"))
 
@@ -90,7 +106,9 @@ class BasicExperiment:
             y_score.append(output_score)
         return y_score
 
-    def score_sklearn(self, model_trained, test_feats: list, test_label: list) -> dict:
+    def score_sklearn(
+            self, model_trained, test_feats: list, test_label: list
+    ) -> Tuple[dict, dict]:
         """
         Calculate a set of performance metrics using sklearn
         :param model_trained: a model trained using for inference
@@ -105,10 +123,10 @@ class BasicExperiment:
 
             # Calculate the auc_score, FP-rate, and TP-rate
             sklearn_roc_auc_score = roc_auc_score(y_true, y_score)
-            sklear_fpr, sklearn_tpr, n_thresholds = roc_curve(y_true, y_score)
+            sklearn_fpr, sklearn_tpr, n_thresholds = roc_curve(y_true, y_score)
 
             # Make prediction using a threshold that maximizes the difference between TPR and FPR
-            optimal_idx = np.argmax(sklearn_tpr - sklear_fpr)
+            optimal_idx = np.argmax(sklearn_tpr - sklearn_fpr)
             optimal_threshold = n_thresholds[optimal_idx]
             y_pred = [1 if scr > optimal_threshold else 0 for scr in y_score]
         except Exception as e:
@@ -133,36 +151,47 @@ class BasicExperiment:
 
             # Create a dictionary of scores
             dict_scores = {
-                "model_name": self.name_model,
                 "acc_score": float(acc),
                 "tn": int(tn),
                 "fp": int(fp),
                 "fn": int(fn),
                 "tp": int(tp),
-                "tpr": sklearn_tpr.tolist(),
-                "tnr": sklear_fpr.tolist(),
                 "sensitivity": float(sensitivity),
                 "specificity": float(specificity),
-                "decision_thresholds": n_thresholds.tolist(),
                 "optimal_threshold": float(optimal_threshold),
                 "auc_score": float(sklearn_roc_auc_score),
                 "confusion_matrix": confusion_mx.tolist(),
                 "f1_scr": float(f1_scr),
-                "f_beta": f_beta.tolist(),
-                "precision": precision.tolist(),
-                "recall": recall.tolist(),
             }
+
+            # Scores for classes
+            num_classes = len(np.unique(y_true))
+            for i in range(num_classes):
+                dict_scores[f"precision_class_{i}"] = precision[i]
+                dict_scores[f"recall_class_{i}"] = recall[i]
+                dict_scores[f"f_beta_class_{i}"] = f_beta[i]
+
+            dict_predictions = {
+                "y_true": y_true,
+                "y_scores": y_score,
+                "y_pred": y_pred,
+            }
+
             app_logger.info(
-                "Experiment - Scoring: Accuracy = {:.2f}, AUC = {:.2f}".format(acc, sklearn_roc_auc_score)
+                "Experiment - Scoring: Accuracy = {:.2f}, AUC = {:.2f} , F1-Score = {:.2f}".format(
+                    acc, sklearn_roc_auc_score, f1_scr
+                )
             )
             app_logger.info(
-                "Experiment - Scoring: Sensitivity = {:.2f}, specificity = {:.2f}".format(sensitivity, specificity)
+                "Experiment - Scoring: Sensitivity = {:.2f}, specificity = {:.2f}".format(
+                    sensitivity, specificity
+                )
             )
         except Exception as e:
             app_logger.error(f"Error calculating the performance metrics: {e}")
             raise ExperimentError(e)
 
-        return dict_scores
+        return dict_scores, dict_predictions
 
     def run_experiment(self):
         if self.parameters_model is None or self.name_model is None:
@@ -184,7 +213,7 @@ class BasicExperiment:
             seed=self.seed,
         )
 
-        training_results_for_each_fold = {}
+        model_performance_for_each_fold, predictions_for_each_fold = {}, {}
         for fold in folds_train.keys():
             train_data = folds_train[fold]
 
@@ -194,15 +223,55 @@ class BasicExperiment:
 
             # Score the model
             test_data = folds_test[fold]
-            fold_scores_train = self.score_sklearn(
+            fold_scores_test_set, fold_predictions_test_set = self.score_sklearn(
                 trained_model,
                 test_data["X"],
                 test_data["y"],
             )
-            training_results_for_each_fold[fold] = fold_scores_train
 
-        self.experiments_results = training_results_for_each_fold
+            fold_predictions_test_set["ids"] = [
+                audio_id.split("/")[-1] for audio_id in test_data["audio_id"]
+            ]
+            df_index_2_labels_scores_predictions = pd.DataFrame(
+                {
+                    "y_true": fold_predictions_test_set["y_true"],
+                    "y_scores": fold_predictions_test_set["y_scores"],
+                    "y_pred": fold_predictions_test_set["y_pred"],
+                },
+                index=fold_predictions_test_set["ids"],
+            )
+
+            model_performance_for_each_fold[fold] = fold_scores_test_set
+            predictions_for_each_fold[fold] = df_index_2_labels_scores_predictions
+
+        self.experiment_performance = model_performance_for_each_fold
+        self.experiment_predictions = predictions_for_each_fold
         app_logger.info(f"Experiment - Training phase completed.")
 
         self.save_as_a_serialized_object()
-        return training_results_for_each_fold
+        return model_performance_for_each_fold
+
+    def record_experiment(self):
+        if not self.mlflow_service.is_up():
+            app_logger.error(
+                "MLFlow is not running. The experiment will not be recorded."
+            )
+            raise ConnectionError("MLFlow is not running.")
+
+        for fold in self.experiment_performance.keys():
+            model_config = self.parameters_model
+            model_config["model_name"] = self.name_model
+            model_performance = self.experiment_performance[fold]
+
+            try:
+                self.mlflow_service.record_a_experiment(
+                    filters=self.dataset.filters,
+                    all_scores=model_performance,
+                    model_config=self.parameters_model,
+                    feature_config=self.dataset.config_audio,
+                    num_fold_to_record=fold,
+                    seed=self.seed,
+                )
+            except Exception as e:
+                app_logger.error(f"Error recording the experiment: {e}")
+                raise ExperimentError(e)
