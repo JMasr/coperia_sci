@@ -5,6 +5,7 @@ import pandas as pd
 
 from experiments.basic_exp import BasicExperiment
 from features.audio_processor import SUPPORTED_FEATS
+from model.model_object import DEFAULT_CONFIG
 from src.dataset.basic_dataset import AudioDataset
 from src.files import json_file_to_dict
 from src.logger import app_logger
@@ -78,6 +79,7 @@ if __name__ == "__main__":
     metadata_path = config_dataset_experiment.get("path_to_csv")
     dataset_object_path = config_dataset_experiment.get("path_to_object", False)
     dataset_raw_data_path = config_dataset_experiment.get("raw_data_path")
+    filters = config_dataset_experiment.get("filters")
 
     config_model_experiment = config.get("model")
     model_name = config_model_experiment.get("name")
@@ -88,12 +90,14 @@ if __name__ == "__main__":
         dataset = AudioDataset(
             name=dataset_name,
             storage_path=os.path.dirname(dataset_object_path),
+            filters=filters[0],
             config_audio=config_audio,
         ).load_dataset_from_a_serialized_object(dataset_object_path)
         app_logger.info("Pipeline - Dataset loaded.")
     else:
         dataset = AudioDataset(
             name=dataset_name,
+            filters=filters[0],
             storage_path=os.path.dirname(dataset_object_path),
             config_audio=config_audio,
         )
@@ -105,24 +109,25 @@ if __name__ == "__main__":
         )
 
         dataset.load_raw_data()
-        dataset.extract_acoustic_features(feat_name=feat_name)
+        dataset.extract_acoustic_features(feat_name)
         dataset.save_dataset_as_a_serialized_object()
         app_logger.info(f"Pipeline - Dataset saved with {feat_name} features.")
 
-    for feat_selected in SUPPORTED_FEATS:
-        experiment = BasicExperiment(
-            seed=seed,
-            name=run_name,
-            dataset=dataset,
-            k_fold=k_fold,
-            test_size=test_size,
-            feature_name=feat_selected,
-            target_class=target_class,
-            target_label=target_label,
-            name_model=model_name,
-            parameters_model=model_parameters,
-            path_to_save_experiment=path_to_save_experiment,
-        )
+    for feat_name in SUPPORTED_FEATS:
+        for model_name in DEFAULT_CONFIG.keys():
+            experiment = BasicExperiment(
+                seed=seed,
+                name=run_name,
+                dataset=dataset,
+                k_fold=k_fold,
+                test_size=test_size,
+                feature_name=feat_name,
+                target_class=target_class,
+                target_label=target_label,
+                name_model=model_name,
+                parameters_model=DEFAULT_CONFIG[model_name],
+                path_to_save_experiment=path_to_save_experiment,
+            )
 
-        results_of_training = experiment.run_experiment()
-        del experiment
+            experiment.run_experiment()
+            experiment.record_experiment()
