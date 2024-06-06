@@ -15,11 +15,11 @@ from sklearn.metrics import (
 )
 from tqdm import tqdm
 
-from dataset.basic_dataset import AudioDataset
-from exceptions import ExperimentError
-from experiments.mlflow import MlFlowService
-from logger import app_logger
-from model.model_object import ModelBuilder
+from src.dataset.basic_dataset import AudioDataset
+from src.exceptions import ExperimentError
+from src.experiments.mlflow import MlFlowService
+from src.logger import app_logger
+from src.model.model_object import ModelBuilder
 
 
 class BasicExperiment:

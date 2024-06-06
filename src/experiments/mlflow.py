@@ -1,7 +1,7 @@
 import mlflow
 import requests
 
-from logger import app_logger
+from src.logger import app_logger
 
 
 class MlFlowService:

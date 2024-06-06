@@ -1,14 +1,15 @@
 import os.path
 from pathlib import Path
+from time import sleep
 
 import pandas as pd
 
-from experiments.basic_exp import BasicExperiment
-from features.audio_processor import SUPPORTED_FEATS
-from model.model_object import DEFAULT_CONFIG
 from src.dataset.basic_dataset import AudioDataset
+from src.experiments.basic_exp import BasicExperiment
+from src.features.audio_processor import SUPPORTED_FEATS
 from src.files import json_file_to_dict
 from src.logger import app_logger
+from src.model.model_object import DEFAULT_CONFIG
 
 
 def make_dicoperia_metadata(
@@ -131,3 +132,5 @@ if __name__ == "__main__":
 
             experiment.run_experiment()
             experiment.record_experiment()
+            del experiment
+            sleep(5)
