@@ -1,5 +1,6 @@
 import os.path
 import pickle
+import types
 
 from pydantic import BaseModel
 from sklearn.ensemble import RandomForestClassifier
@@ -9,7 +10,7 @@ from sklearn.svm import SVC
 
 from src.logger import app_logger
 
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG = types.MappingProxyType({
     "LogisticRegression": {
         "C": 0.01,
         "max_iter": 40,
@@ -40,7 +41,7 @@ DEFAULT_CONFIG = {
     },
     "MLP": {
         "alpha": 0.001,
-        "max_iter": 500,
+        "max_iter": 1500,
         "solver": "adam",
         "activation": "tanh",
         "learning_rate_init": 0.001,
@@ -48,14 +49,14 @@ DEFAULT_CONFIG = {
         "verbose": True,
         "random_state": 42,
     },
-}
+})
 
-SUPPORTED_MODELS = {
+SUPPORTED_MODELS = types.MappingProxyType({
     "LogisticRegression": LogisticRegression(**DEFAULT_CONFIG["LogisticRegression"]),
     "RandomForest": RandomForestClassifier(**DEFAULT_CONFIG["RandomForest"]),
     "LinearSVM": SVC(**DEFAULT_CONFIG["LinearSVM"]),
     "MLP": MLPClassifier(**DEFAULT_CONFIG["MLP"]),
-}
+})
 
 
 class ModelBuilder(BaseModel):
@@ -66,6 +67,25 @@ class ModelBuilder(BaseModel):
     model: object = None
     is_trained: bool = False
     parameters: dict = None
+
+    def _check_model_parameters(self):
+        if self.name not in DEFAULT_CONFIG.keys():
+            raise ValueError(f"Model {self.name} is not supported.")
+
+        if self.parameters:
+            # Check that all parameters in the default configuration are present
+            for key in DEFAULT_CONFIG[self.name].keys():
+                if key not in self.parameters.keys():
+                    app_logger.warning(f"Parameter {key} not found in the model configuration."
+                                       f" Using default value: {DEFAULT_CONFIG[self.name][key]}")
+                    self.parameters[key] = DEFAULT_CONFIG[self.name][key]
+
+            # Check that all parameters in the model configuration are valid
+            for key in self.parameters.keys():
+                if key not in DEFAULT_CONFIG[self.name].keys():
+                    app_logger.warning(f"Parameter {key} not found in the default configuration."
+                                       f" Removing parameter from the model configuration.")
+                    self.parameters.pop(key)
 
     def save_as_a_serialized_object(self, path_to_save: str = None):
         if path_to_save:
@@ -107,9 +127,12 @@ class ModelBuilder(BaseModel):
 
         try:
             if self.parameters:
+                self._check_model_parameters()
+
                 model = SUPPORTED_MODELS[self.name]
                 model.set_params(**self.parameters)
             else:
+                app_logger.warning(f"No parameters found for the model. Using default configuration.")
                 model = SUPPORTED_MODELS[self.name]
         except Exception as e:
             message = f"ModelBuilder - An error occurred while loading the model: {e}"
