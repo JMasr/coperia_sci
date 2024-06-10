@@ -67,6 +67,7 @@ if __name__ == "__main__":
 
     config_run_experiment = config.get("run")
     seed = config.get("run").get("seed")
+    debug = config.get("run").get("debug")
     k_fold = config.get("run").get("k_folds")
     test_size = config.get("run").get("test_size")
     run_name = config_run_experiment.get("run_name")
@@ -104,6 +105,9 @@ if __name__ == "__main__":
         )
 
         dataset.load_metadata_from_csv(metadata_path, decimal=",")
+        if debug:
+            dataset.sample_metadata(fraction=0.1)
+
         dataset.transform_metadata([make_dicoperia_metadata])
         dataset.transform_column_id_2_data_path(
             column_name="audio_id", path=dataset_raw_data_path, extension=".wav"
@@ -116,6 +120,8 @@ if __name__ == "__main__":
 
     for feat_name in SUPPORTED_FEATS:
         for model_name in DEFAULT_CONFIG.keys():
+            model_parameters = DEFAULT_CONFIG[model_name]
+
             experiment = BasicExperiment(
                 seed=seed,
                 name=run_name,
@@ -126,7 +132,7 @@ if __name__ == "__main__":
                 target_class=target_class,
                 target_label=target_label,
                 name_model=model_name,
-                parameters_model=DEFAULT_CONFIG[model_name],
+                parameters_model=model_parameters,
                 path_to_save_experiment=path_to_save_experiment,
             )
 
