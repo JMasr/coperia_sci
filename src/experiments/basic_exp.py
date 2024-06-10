@@ -195,7 +195,8 @@ class BasicExperiment:
 
     def run_experiment(self):
         if self.parameters_model is None or self.name_model is None:
-            model_builder = ModelBuilder(name="LogisticRegression")
+            model_builder = ModelBuilder(name="LogisticRegression",
+                                         path_to_model=self.path_to_save_experiment)
         else:
             model_builder = ModelBuilder(
                 name=self.name_model,
@@ -259,7 +260,7 @@ class BasicExperiment:
             raise ConnectionError("MLFlow is not running.")
 
         for fold in self.experiment_performance.keys():
-            model_config = self.parameters_model
+            model_config = self.parameters_model.copy()
             model_config["model_name"] = self.name_model
             model_performance = self.experiment_performance[fold]
 
@@ -267,7 +268,7 @@ class BasicExperiment:
                 self.mlflow_service.record_a_experiment(
                     filters=self.dataset.filters,
                     all_scores=model_performance,
-                    model_config=self.parameters_model,
+                    model_config=model_config,
                     feature_config=self.dataset.config_audio,
                     num_fold_to_record=fold,
                     seed=self.seed,
