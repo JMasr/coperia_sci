@@ -108,6 +108,9 @@ class LocalDataset(BaseModel):
             app_logger.error(f"LocalDataset - The file wasn´t found: {e}")
             raise MetadataError(f"{e}")
 
+    def sample_metadata(self, fraction: float = 0.1, seed: int = 42):
+        self.raw_metadata = self.raw_metadata.sample(frac=fraction, random_state=seed)
+
     def transform_metadata(self, transformations: list):
         if self.raw_metadata.empty:
             message = "LocalDataset - Metadata is empty. Please, load a metadata first."
