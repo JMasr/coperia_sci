@@ -13,6 +13,7 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
 )
+from sklearn.model_selection import permutation_test_score
 from tqdm import tqdm
 
 from src.dataset.basic_dataset import AudioDataset
@@ -149,6 +150,20 @@ class BasicExperiment:
             sensitivity = tp / (tp + fn)
             specificity = tn / (tn + fp)
 
+            # Calculate Permutation Test Score
+            estimator = model_trained.__class__(**model_trained.get_params())
+
+            matrix_feats = np.empty((0, y_feats[0].shape[1]))
+            matrix_labels = np.empty((0, 1))
+            for feat, label in zip(y_feats, y_true):
+                matrix_feats = np.vstack((matrix_feats, feat))
+                label = np.array([label] * feat.shape[0])
+                matrix_labels = np.vstack((matrix_labels, label))
+
+            score, permutation_scores, pvalue = permutation_test_score(
+                estimator, matrix_feats, matrix_labels, random_state=self.seed
+            )
+
             # Create a dictionary of scores
             dict_scores = {
                 "acc_score": float(acc),
@@ -162,6 +177,8 @@ class BasicExperiment:
                 "auc_score": float(sklearn_roc_auc_score),
                 "confusion_matrix": confusion_mx.tolist(),
                 "f1_scr": float(f1_scr),
+                "true_permutation_score": float(score),
+                "p_value": float(pvalue),
             }
 
             # Scores for classes
