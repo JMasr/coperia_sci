@@ -1,9 +1,9 @@
 import multiprocessing
 import os
 import pickle
-import resource
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+from sys import platform
 
 import numpy as np
 import pandas as pd
@@ -17,8 +17,10 @@ from src.logger import app_logger
 
 
 def increase_open_file_limit(new_limit=100000):
-    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (new_limit, hard_limit))
+    if platform == "linux" or platform == "linux2":
+        from resource import getrlimit, setrlimit, RLIMIT_NOFILE
+        soft_limit, hard_limit = getrlimit(RLIMIT_NOFILE)
+        setrlimit(RLIMIT_NOFILE, (new_limit, hard_limit))
 
 
 class LocalDataset(BaseModel):
@@ -268,9 +270,9 @@ class LocalDataset(BaseModel):
 
             # Log the lengths of the subsets
             app_logger.info(
-                "LocalDataset - Subsets creation- Train and test subsets creation successful."
-                f" Train subset: {exp_metadata[exp_metadata['subset'] == 'train'].shape[0]} &"
-                f" Test subset: {exp_metadata[exp_metadata['subset'] == 'test'].shape[0]}"
+                "LocalDataset - Subsets creation- Train and test subsets creation successful. "
+                f"Train subset: {exp_metadata[exp_metadata['subset'] == 'train'].shape[0]} & "
+                f"Test subset: {exp_metadata[exp_metadata['subset'] == 'test'].shape[0]}"
             )
         except Exception as e:
             app_logger.error(
@@ -316,8 +318,8 @@ class LocalDataset(BaseModel):
                 ] = "test"
                 folds_data[fold_index] = fold_metadata
                 app_logger.info(
-                    f"LocalDataset - Subsets creation- {fold_index + 1} fold created."
-                    f"Train subset: {fold_metadata[fold_metadata['subset'] == 'train'].shape[0]} &"
+                    f"LocalDataset - Subsets creation- {fold_index + 1} fold created. "
+                    f"Train subset: {fold_metadata[fold_metadata['subset'] == 'train'].shape[0]} & "
                     f"Test subset: {fold_metadata[fold_metadata['subset'] == 'test'].shape[0]}"
                 )
 
