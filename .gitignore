@@ -3,11 +3,11 @@
 
 # Mics files
 *.log
-
-*.json
-*.csv
-
-# Data
 *.pkl
-data
+*.csv
+*.json
+
+# Directories with data or logs
+data/
+mlruns/
 /test/temp_folder/
