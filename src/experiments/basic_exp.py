@@ -117,7 +117,7 @@ class BasicExperiment:
         :param test_label: a list of test labels
         :return: set of performance metrics: confusion matrix, f1 score, f-beta score, precision, recall, and auc score
         """
-        # Start testing
+        app_logger.info("Experiment - Scoring the model...")
         try:
             y_feats, y_true = test_feats, test_label
             y_score = self.make_prediction(model_trained, y_feats)
@@ -159,6 +159,7 @@ class BasicExperiment:
                 matrix_feats = np.vstack((matrix_feats, feat))
                 label = np.array([label] * feat.shape[0])
                 matrix_labels = np.vstack((matrix_labels, label))
+            matrix_labels = matrix_labels.ravel()
 
             score, permutation_scores, pvalue = permutation_test_score(
                 estimator, matrix_feats, matrix_labels, random_state=self.seed
@@ -212,8 +213,9 @@ class BasicExperiment:
 
     def run_experiment(self):
         if self.parameters_model is None or self.name_model is None:
-            model_builder = ModelBuilder(name="LogisticRegression",
-                                         path_to_model=self.path_to_save_experiment)
+            model_builder = ModelBuilder(
+                name="LogisticRegression", path_to_model=self.path_to_save_experiment
+            )
         else:
             model_builder = ModelBuilder(
                 name=self.name_model,
@@ -221,7 +223,6 @@ class BasicExperiment:
                 path_to_model=self.path_to_save_experiment,
             )
 
-        app_logger.info(f"Pipeline - {self.k_fold} Folds initialization...")
         folds_train, folds_test = self.dataset.get_k_audio_subsets_multiprocess(
             target_class_for_fold=self.target_class,
             target_label_for_fold=self.target_label,
