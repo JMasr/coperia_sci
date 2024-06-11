@@ -19,6 +19,7 @@ from src.logger import app_logger
 def increase_open_file_limit(new_limit=100000):
     if platform == "linux" or platform == "linux2":
         from resource import getrlimit, setrlimit, RLIMIT_NOFILE
+
         soft_limit, hard_limit = getrlimit(RLIMIT_NOFILE)
         setrlimit(RLIMIT_NOFILE, (new_limit, hard_limit))
 
@@ -415,13 +416,19 @@ class AudioDataset(LocalDataset):
         return dict_ids_to_raw_data
 
     def _check_if_feat_is_already_extracted(self, feat_name: str):
-        is_acoustic_feat_data_valid = len(self.acoustic_feat_data) == len(self.raw_audio_data)
-        has_each_audio_the_feat_requested = all([
-            feat_name in feat_dict.keys()
-            for feat_dict in self.acoustic_feat_data.values()
-        ])
+        is_acoustic_feat_data_valid = len(self.acoustic_feat_data) == len(
+            self.raw_audio_data
+        )
+        has_each_audio_the_feat_requested = all(
+            [
+                feat_name in feat_dict.keys()
+                for feat_dict in self.acoustic_feat_data.values()
+            ]
+        )
 
-        feat_is_storage_on_memory = has_each_audio_the_feat_requested and is_acoustic_feat_data_valid
+        feat_is_storage_on_memory = (
+                has_each_audio_the_feat_requested and is_acoustic_feat_data_valid
+        )
         return feat_is_storage_on_memory
 
     def extract_acoustic_features(
@@ -543,7 +550,9 @@ class AudioDataset(LocalDataset):
 
                     if subset_at_sample_lv:
                         test_labels.append(label_of_id_sample)
-                        test_audio_id.append(np.array([id_] * feat_of_id_sample.shape[0]))
+                        test_audio_id.append(
+                            np.array([id_] * feat_of_id_sample.shape[0])
+                        )
                     else:
                         test_labels.append(np.array([np.mean(label_of_id_sample)]))
                         test_audio_id.append(id_)
@@ -555,8 +564,14 @@ class AudioDataset(LocalDataset):
                 test_feats = np.vstack(test_feats, dtype=np.float32)
                 test_labels = np.vstack(test_labels, dtype=int)
 
+            train_labels = train_labels.ravel()
+
             result = {
-                "train": {"X": train_feats, "y": train_labels, "audio_id": train_audio_id},
+                "train": {
+                    "X": train_feats,
+                    "y": train_labels,
+                    "audio_id": train_audio_id,
+                },
                 "test": {"X": test_feats, "y": test_labels, "audio_id": test_audio_id},
             }
 
