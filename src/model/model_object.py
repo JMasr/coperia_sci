@@ -8,7 +8,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC
 
-from exceptions import ModelError
+from src.exceptions import ModelError
 from src.logger import app_logger
 
 DEFAULT_CONFIG = types.MappingProxyType(
