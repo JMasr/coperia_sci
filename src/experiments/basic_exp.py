@@ -135,22 +135,22 @@ class BasicExperiment:
             raise ExperimentError(e)
 
         try:
-            # Calculate Precision, Recall, F1, and F-beta scores
+            app_logger.info("Experiment - Calculating Precision, Recall, F1, and F-beta scores.")
             acc = accuracy_score(y_true, y_pred)
             precision, recall, f_beta, support = precision_recall_fscore_support(
                 y_true, y_pred
             )
             f1_scr = f1_score(y_true, y_pred)
 
-            # Calculate Confusion Matrix
+            app_logger.info("Experiment - Calculating the confusion matrix.")
             confusion_mx = confusion_matrix(y_true, y_pred)
 
-            # Calculate the specificity and sensitivity
+            app_logger.info("Experiment - Calculating the sensitivity and specificity.")
             tn, fp, fn, tp = confusion_mx.ravel()
             sensitivity = tp / (tp + fn)
             specificity = tn / (tn + fp)
 
-            # Calculate Permutation Test Score
+            app_logger.info("Experiment - Calculating the P-Value using permutation test.")
             estimator = model_trained.__class__(**model_trained.get_params())
 
             matrix_feats = np.empty((0, y_feats[0].shape[1]))
