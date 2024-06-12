@@ -11,13 +11,36 @@ from src.dataset.basic_dataset import LocalDataset
 from test import ROOT_PATH
 
 
-def mock_an_dataframe_with_metadata(n: int):
+def mock_a_dataframe_with_metadata(number_of_rows: int = 100):
     fake = Faker()
-    ids = [fake.uuid4() for _ in range(n)]
-    labels = [fake.boolean() for _ in range(n)]
-    data = np.random.randint(0, 100, size=n)
-    genders = [fake.random_element(["Male", "Female"]) for _ in range(n)]
+    ids = [fake.uuid4() for _ in range(number_of_rows)]
+    labels = [fake.boolean() for _ in range(number_of_rows)]
+    data = np.random.randint(0, 100, size=number_of_rows)
+    genders = [fake.random_element(["Male", "Female"]) for _ in range(number_of_rows)]
     return pd.DataFrame({"id": ids, "label": labels, "data": data, "gender": genders})
+
+
+def mock_a_dataframe_with_metadata_and_audio(path_to_temp_folder: str, sample_rate: int, number_of_rows: int = 100,
+                                             sf=None):
+    df_with_metadata = mock_a_dataframe_with_metadata(number_of_rows)
+
+    # Create a temporary audio file
+    os.makedirs(path_to_temp_folder, exist_ok=True)
+
+    paths_to_dummy_audio_files = []
+    for i in range(number_of_rows):
+        path_to_dummy_valid_signal = os.path.join(path_to_temp_folder, f"valid_dummy_wav_{i}.wav")
+        valid_dummy_signal = np.random.uniform(-1, 1, size=(sample_rate * 10, 2))
+        sf.write(
+            path_to_dummy_valid_signal,
+            valid_dummy_signal,
+            sample_rate,
+            subtype="PCM_24",
+        )
+        paths_to_dummy_audio_files.append(path_to_dummy_valid_signal)
+    df_with_metadata["path"] = paths_to_dummy_audio_files
+
+    return df_with_metadata
 
 
 class TestLocalDatasetShould:
@@ -30,7 +53,9 @@ class TestLocalDatasetShould:
 
         cls.str_path_temp_file = os.path.join(cls.str_path_temp_folder, "temp_file.csv")
         cls.temp_file = Path(cls.str_path_temp_file)
-        cls.fake_dataframe = mock_an_dataframe_with_metadata(300)
+
+        cls.num_rows = 300
+        cls.fake_dataframe = mock_a_dataframe_with_metadata(cls.num_rows)
         cls.fake_dataframe.to_csv(cls.temp_file, index=False, sep=",")
 
     @classmethod
@@ -112,7 +137,7 @@ class TestLocalDatasetShould:
         dataset.load_metadata_from_csv(self.str_path_temp_file)
 
         # Act
-        dataset_ready = dataset.make_1_fold_subsets(
+        dataset_ready = dataset._make_1_fold_subsets(
             target_class_for_fold="id",
             target_label_for_fold="label",
             test_size=0.2,
@@ -123,7 +148,7 @@ class TestLocalDatasetShould:
 
         # Assert
         assert isinstance(dataset_ready, dict)
-        assert dataset_ready == dataset.folds_data
+        assert len(dataset_ready) == 1
 
         assert (
                 fold.loc[fold["subset"] == "train"].shape[0]
@@ -145,7 +170,7 @@ class TestLocalDatasetShould:
         dataset.load_metadata_from_csv(self.str_path_temp_file)
 
         # Act
-        dataset_ready = dataset.make_k_fold_subsets(
+        dataset_ready = dataset._make_k_fold_subsets(
             target_class_for_fold="id", k_fold=k_fold, seed=42
         )
 
@@ -164,7 +189,27 @@ class TestLocalDatasetShould:
             )
 
 
-# TODO: Add test for AudioDataset
+class TestAudioDatasetShould:
+    @classmethod
+    def setup_class(cls):
+        # Create a temporary resources for testing
+        cls.str_path_temp_folder = os.path.join(ROOT_PATH, "test", "temp_folder")
+        os.makedirs(cls.str_path_temp_folder, exist_ok=True)
+
+        cls.num_rows = 300
+        cls.sample_rate = 16000
+        cls.fake_dataframe = mock_a_dataframe_with_metadata_and_audio(
+            cls.str_path_temp_folder, cls.sample_rate, cls.num_rows
+        )
+
+        cls.temp_file = Path(os.path.join(cls.str_path_temp_folder, "temp_file.csv"))
+        cls.fake_dataframe.to_csv(cls.temp_file, index=False, sep=",")
+
+    @classmethod
+    def teardown_class(cls):
+        # Remove the temporary CSV file after testing
+        cls.temp_file.unlink()
+
 
 if __name__ == "__main__":
     # Run all tests in the module
