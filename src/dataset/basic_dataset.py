@@ -188,44 +188,6 @@ class LocalDataset(BaseModel):
 
         return pat_train, pat_test
 
-    @staticmethod
-    def get_a_series_by_index_and_a_target_class(
-            exp_metadata: pd.DataFrame, index_to_get: np.ndarray, target_class: str
-    ) -> pd.Series:
-        """
-        Get a subset of the metadata based on the index of the samples and the target class.
-        Example:
-        # Using the target subsets to select the samples
-            samples_train = self.get_a_series_by_index_and_a_target_class(exp_metadata,
-                                                                          index_train_fold,
-                                                                          target_data_for_fold)
-            labels_train = self.get_a_series_by_index_and_a_target_class(exp_metadata,
-                                                                         index_train_fold,
-                                                                         target_label_for_fold)
-            samples_test = self.get_a_series_by_index_and_a_target_class(exp_metadata,
-                                                                         index_test_fold,
-                                                                         target_data_for_fold)
-            labels_test = self.get_a_series_by_index_and_a_target_class(exp_metadata,
-                                                                        index_test_fold,
-                                                                        target_label_for_fold)
-        :param exp_metadata: DataFrame with the metadata
-        :param index_to_get: List with the index of the samples to get
-        :param target_class: Column name with the target class
-        :return:
-        """
-
-        # Using the target subsets to select the samples
-        sample_data = exp_metadata.loc[exp_metadata[target_class].isin(index_to_get)]
-        samples_filtered = sample_data[target_class]
-
-        # Log the lengths of the subsets
-        app_logger.debug(
-            f"LocalDataset - Filtered the Dataset."
-            f" Results: {index_to_get.shape[0]} instance & {samples_filtered.shape[0]} samples"
-        )
-
-        return samples_filtered
-
     def _make_1_fold_subsets(
             self,
             target_class_for_fold: str,
@@ -360,18 +322,6 @@ class LocalDataset(BaseModel):
             )
 
         return folds_data
-
-    def get_train_data(self, fold: int = 0):
-        if fold not in self.folds_data:
-            message = f"LocalDataset - The fold {fold} is not available."
-            app_logger.error(message)
-            raise ValueError(message)
-
-        train_data = self.folds_data[fold][self.folds_data[fold]["subset"] == "train"]
-        x_train = train_data.drop(columns=["subset"])
-        y_train = x_train.pop("label")
-
-        return x_train, y_train
 
 
 # Create a class child class of LocalDataset with the name "AudioDataset"
@@ -628,8 +578,8 @@ class AudioDataset(LocalDataset):
             target_class_for_fold: str,
             target_label_for_fold: str,
             acoustics_feat_name: str,
-            k_folds: int = 5,
             seed: int = 42,
+            k_folds: int = 5,
             test_size: float = 0.2,
             subset_at_sample_lv: bool = False,
     ):
