@@ -61,6 +61,10 @@ class LocalDataset(BaseModel):
     storage_path: str
     app_logger: logging.Logger
 
+    column_with_ids: str
+    column_with_target_class: str
+    column_with_label_of_class: str
+
     filters: dict = {}
     raw_metadata: pd.DataFrame = pd.DataFrame()
     post_processed_metadata: pd.DataFrame = pd.DataFrame()
@@ -311,10 +315,10 @@ class LocalDataset(BaseModel):
             self,
             k_folds: int,
             test_size: float,
-            target_class_for_fold: str,
-            target_label_for_fold: str,
             seed: int,
     ) -> dict:
+        target_class_for_fold = self.column_with_target_class
+        target_label_for_fold = self.column_with_label_of_class
 
         if k_folds <= 1:
             folds_data = self._make_1_fold_subsets(
@@ -334,7 +338,7 @@ class LocalDataset(BaseModel):
 # Create a class child class of LocalDataset with the name "AudioDataset"
 class AudioDataset(LocalDataset):
     config_audio: dict
-    app_logger: logging.Logger
+    dataset_raw_data_path: str
 
     raw_audio_data: dict = {}
     acoustic_feat_data: dict = {}
@@ -347,19 +351,30 @@ class AudioDataset(LocalDataset):
 
     def load_raw_data(
             self,
-            column_with_path: str = "audio_id",
             num_cores: int = multiprocessing.cpu_count(),
     ) -> Dict[str, np.ndarray]:
-        if self.raw_audio_data and self.raw_audio_data is not None:
+        if len(self.raw_audio_data) != 0 and self.raw_audio_data is not None:
             message = "AudioDataset - The raw audio data is already loaded."
             self.app_logger.warning(message)
             raise ValueError(message)
+
+        if self.post_processed_metadata.empty:
+            self.app_logger.warning(
+                "AudioDataset - No post-processed metadata found. Loading raw data using raw metadata."
+            )
+            self.post_processed_metadata = self.raw_metadata
+
+        self.transform_column_id_2_data_path(
+            column_name=self.column_with_ids,
+            path=self.dataset_raw_data_path,
+            extension=".wav",
+        )
 
         try:
             feature_extractor = self._create_an_audio_processor()
             dict_ids_to_raw_data = feature_extractor.load_all_wav_files_from_dataset(
                 dataset=self.post_processed_metadata,
-                name_column_with_path=column_with_path,
+                name_column_with_path=self.column_with_ids,
                 num_cores=num_cores,
             )
 
@@ -470,7 +485,8 @@ class AudioDataset(LocalDataset):
     def _process_fold(
             dataframe: pd.DataFrame,
             fold: int,
-            target_label_for_fold: str,
+            column_with_ids: str,
+            column_with_labels_for_fold: str,
             acoustics_feat_name: str,
             acoustic_feat_data: dict,
             subset_at_sample_lv: bool = False,
@@ -478,22 +494,22 @@ class AudioDataset(LocalDataset):
         try:
             # Get the column with target_label_for_fold and subset
             test_metadata = dataframe[dataframe["subset"] == "test"][
-                ["audio_id", target_label_for_fold]
+                [column_with_ids, column_with_labels_for_fold]
             ]
             train_metadata = dataframe[dataframe["subset"] == "train"][
-                ["audio_id", target_label_for_fold]
+                [column_with_ids, column_with_labels_for_fold]
             ]
 
-            test_ids = set(test_metadata["audio_id"])
-            train_ids = set(train_metadata["audio_id"])
+            test_ids = set(test_metadata[column_with_ids])
+            train_ids = set(train_metadata[column_with_ids])
 
             train_feats, train_labels, train_audio_id = [], [], []
             test_feats, test_labels, test_audio_id = [], [], []
             for id_, feats_of_id in acoustic_feat_data.items():
                 feat_of_id_sample = np.array(feats_of_id[acoustics_feat_name])
 
-                label_of_id_sample = dataframe[dataframe["audio_id"] == id_][
-                    target_label_for_fold
+                label_of_id_sample = dataframe[dataframe[column_with_ids] == id_][
+                    column_with_labels_for_fold
                 ]
                 label_of_id_sample = np.array(
                     [label_of_id_sample] * feat_of_id_sample.shape[0]
@@ -532,9 +548,13 @@ class AudioDataset(LocalDataset):
                 "train": {
                     "X": train_feats,
                     "y": train_labels,
-                    "audio_id": train_audio_id,
+                    column_with_ids: train_audio_id,
                 },
-                "test": {"X": test_feats, "y": test_labels, "audio_id": test_audio_id},
+                "test": {
+                    "X": test_feats,
+                    "y": test_labels,
+                    column_with_ids: test_audio_id,
+                },
             }
 
             return fold, result
@@ -543,8 +563,6 @@ class AudioDataset(LocalDataset):
 
     def get_k_audio_subsets(
             self,
-            target_class_for_fold: str,
-            target_label_for_fold: str,
             acoustics_feat_name: str,
             k_folds: int = 5,
             seed: int = 42,
@@ -556,8 +574,6 @@ class AudioDataset(LocalDataset):
             seed=seed,
             k_folds=k_folds,
             test_size=test_size,
-            target_class_for_fold=target_class_for_fold,
-            target_label_for_fold=target_label_for_fold,
         )
 
         folds_test_ids_to_feats_and_labels = {fold: {} for fold in fold_data.keys()}
@@ -568,7 +584,8 @@ class AudioDataset(LocalDataset):
                 _, result = self._process_fold(
                     dataframe,
                     fold,
-                    target_label_for_fold,
+                    self.column_with_ids,
+                    self.column_with_label_of_class,
                     acoustics_feat_name,
                     self.acoustic_feat_data,
                     subset_at_sample_lv,
@@ -587,8 +604,6 @@ class AudioDataset(LocalDataset):
 
     def get_k_audio_subsets_multiprocess(
             self,
-            target_class_for_fold: str,
-            target_label_for_fold: str,
             acoustics_feat_name: str,
             k_folds: int = 5,
             seed: int = 42,
@@ -597,11 +612,7 @@ class AudioDataset(LocalDataset):
     ) -> Tuple[dict, dict]:
 
         fold_data: dict = self.get_k_subsets(
-            seed=seed,
-            k_folds=k_folds,
-            test_size=test_size,
-            target_class_for_fold=target_class_for_fold,
-            target_label_for_fold=target_label_for_fold,
+            seed=seed, k_folds=k_folds, test_size=test_size
         )
 
         self.config_audio["feature_type"] = acoustics_feat_name
@@ -623,7 +634,8 @@ class AudioDataset(LocalDataset):
                         self._process_fold,
                         dataframe,
                         fold,
-                        target_label_for_fold,
+                        self.column_with_ids,
+                        self.column_with_label_of_class,
                         acoustics_feat_name,
                         self.acoustic_feat_data,
                         subset_at_sample_lv,
