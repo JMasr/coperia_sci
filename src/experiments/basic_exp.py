@@ -233,8 +233,6 @@ class BasicExperiment:
             )
 
         folds_train, folds_test = self.dataset.get_k_audio_subsets_multiprocess(
-            target_class_for_fold=self.target_class,
-            target_label_for_fold=self.target_label,
             acoustics_feat_name=self.feature_name,
             test_size=self.test_size,
             k_folds=self.k_fold,
