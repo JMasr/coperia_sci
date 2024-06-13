@@ -82,38 +82,40 @@ class Pipeline(BaseModel):
 
             config_dataset_experiment = self.configurations_as_dict.get("dataset")
             dataset_name = config_dataset_experiment.get("name")
+            column_with_ids = config_dataset_experiment.get("column_with_ids")
+            column_with_target_class = config_dataset_experiment.get("column_with_target_class")
+            column_with_label_of_class = config_dataset_experiment.get("column_with_label_of_class")
             metadata_path = config_dataset_experiment.get("path_to_csv")
             dataset_object_path = config_dataset_experiment.get("path_to_object", False)
             dataset_raw_data_path = config_dataset_experiment.get("raw_data_path")
             filters = config_dataset_experiment.get("filters")
+            raw_data_path = config_dataset_experiment.get("raw_data_path")
 
             self.app_logger.info("Pipeline - Processing the dataset")
+            dataset = AudioDataset(
+                name=dataset_name,
+                storage_path=os.path.dirname(dataset_object_path),
+                app_logger=self.app_logger,
+                column_with_ids=column_with_ids,
+                column_with_target_class=column_with_target_class,
+                column_with_label_of_class=column_with_label_of_class,
+                filters=filters[0],
+                config_audio=config_audio,
+                dataset_raw_data_path=raw_data_path,
+
+            )
             if os.path.exists(dataset_object_path):
                 self.app_logger.info("Pipeline -Loading the dataset from a serialized object.")
-                dataset = AudioDataset(
-                    name=dataset_name,
-                    storage_path=os.path.dirname(dataset_object_path),
-                    filters=filters[0],
-                    config_audio=config_audio,
-                    app_logger=self.app_logger,
-                ).load_dataset_from_a_serialized_object(dataset_object_path)
+                dataset.load_dataset_from_a_serialized_object(dataset_object_path)
             else:
                 self.app_logger.info("Pipeline - Processing the dataset from scratch.")
-                dataset = AudioDataset(
-                    name=dataset_name,
-                    filters=filters[0],
-                    storage_path=os.path.dirname(dataset_object_path),
-                    config_audio=config_audio,
-                    app_logger=self.app_logger,
-                )
-
                 dataset.load_metadata_from_csv(metadata_path, decimal=",")
                 if debug:
                     dataset.sample_metadata(fraction=0.1)
 
                 dataset.transform_metadata([function_to_apply_over_metadata])
                 dataset.transform_column_id_2_data_path(
-                    column_name="audio_id", path=dataset_raw_data_path, extension=".wav"
+                    column_name=column_with_ids, path=dataset_raw_data_path, extension=".wav"
                 )
 
                 dataset.load_raw_data()
