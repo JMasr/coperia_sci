@@ -1,26 +1,28 @@
+import logging
+
 import mlflow
 import requests
 
-from src.logger import app_logger
-
 
 class MlFlowService:
-    def __init__(self, uri: str = "http://127.0.0.1", port: int = 5000):
+    def __init__(self, app_logger: logging.Logger, uri: str = "http://127.0.0.1", port: int = 5000):
         self.port = port
         self.tracking_uri = f"{uri}:{port}"
+
+        self.app_logger = app_logger
 
     def is_up(self):
         try:
             uri = f"{self.tracking_uri}/health"
             response = requests.get(uri)
             if response.status_code == 200:
-                app_logger.info("MLFlow is running")
+                self.app_logger.info("MLFlow is running")
                 return True
             else:
-                app_logger.error(f"MLFlow is not running: {response.text}")
+                self.app_logger.error(f"MLFlow is not running: {response.text}")
                 return False
         except Exception as e:
-            app_logger.error(f"Error connecting to MLFlow: {e}")
+            self.app_logger.error(f"Error connecting to MLFlow: {e}")
             return False
 
     def record_a_experiment(

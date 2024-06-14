@@ -1,3 +1,4 @@
+import logging
 import os.path
 import pickle
 from typing import Tuple
@@ -16,10 +17,9 @@ from sklearn.metrics import (
 from sklearn.model_selection import permutation_test_score
 from tqdm import tqdm
 
-from src.dataset.basic_dataset import AudioDataset
+from src.dataset.basic_dataset import LocalDataset
 from src.exceptions import ExperimentError
 from src.experiments.mlflow import MlFlowService
-from src.logger import app_logger
 from src.model.model_object import ModelBuilder
 
 
@@ -28,7 +28,7 @@ class BasicExperiment:
             self,
             seed: int,
             name: str,
-            dataset: AudioDataset,
+            dataset: LocalDataset,
             feature_name: str,
             target_class: str,
             target_label: str,
@@ -37,6 +37,7 @@ class BasicExperiment:
             name_model: str = None,
             parameters_model: dict = None,
             path_to_save_experiment: str = None,
+            app_logger: logging.Logger = None,
     ):
         self.name = name
         self.seed = seed
@@ -56,7 +57,8 @@ class BasicExperiment:
         self.experiment_performance = None
         self.experiment_predictions = None
 
-        self.mlflow_service = MlFlowService(uri="http://127.0.0.1", port=5000)
+        self.app_logger = app_logger
+        self.mlflow_service = MlFlowService(uri="http://127.0.0.1", port=5000, app_logger=app_logger)
 
     class Config:
         arbitrary_types_allowed = True
@@ -79,7 +81,7 @@ class BasicExperiment:
             else:
                 # Print a warning if the number of features is not the same
                 if feat_.shape[1] != model.n_features_in_:
-                    app_logger.warning(
+                    self.app_logger.warning(
                         f"Warning: The number of features is not the same. "
                         f"Expected {model.n_features_in_} but got {feat_.shape[1]}"
                     )
@@ -117,7 +119,7 @@ class BasicExperiment:
         :param test_label: a list of test labels
         :return: set of performance metrics: confusion matrix, f1 score, f-beta score, precision, recall, and auc score
         """
-        app_logger.info("Experiment - Scoring the model...")
+        self.app_logger.info("Experiment - Scoring the model...")
         try:
             y_feats, y_true = test_feats, test_label
             y_score = self.make_prediction(model_trained, y_feats)
@@ -131,26 +133,32 @@ class BasicExperiment:
             optimal_threshold = n_thresholds[optimal_idx]
             y_pred = [1 if scr > optimal_threshold else 0 for scr in y_score]
         except Exception as e:
-            app_logger.error(f"Error making prediction over the test set: {e}")
+            self.app_logger.error(f"Error making prediction over the test set: {e}")
             raise ExperimentError(e)
 
         try:
-            app_logger.info("Experiment - Calculating Precision, Recall, F1, and F-beta scores.")
+            self.app_logger.info(
+                "Experiment - Calculating Precision, Recall, F1, and F-beta scores."
+            )
             acc = accuracy_score(y_true, y_pred)
             precision, recall, f_beta, support = precision_recall_fscore_support(
                 y_true, y_pred
             )
             f1_scr = f1_score(y_true, y_pred)
 
-            app_logger.info("Experiment - Calculating the confusion matrix.")
+            self.app_logger.info("Experiment - Calculating the confusion matrix.")
             confusion_mx = confusion_matrix(y_true, y_pred)
 
-            app_logger.info("Experiment - Calculating the sensitivity and specificity.")
+            self.app_logger.info(
+                "Experiment - Calculating the sensitivity and specificity."
+            )
             tn, fp, fn, tp = confusion_mx.ravel()
             sensitivity = tp / (tp + fn)
             specificity = tn / (tn + fp)
 
-            app_logger.info("Experiment - Calculating the P-Value using permutation test.")
+            self.app_logger.info(
+                "Experiment - Calculating the P-Value using permutation test."
+            )
             estimator = model_trained.__class__(**model_trained.get_params())
 
             matrix_feats = np.empty((0, y_feats[0].shape[1]))
@@ -195,18 +203,18 @@ class BasicExperiment:
                 "y_pred": y_pred,
             }
 
-            app_logger.info(
+            self.app_logger.info(
                 "Experiment - Scoring: Accuracy = {:.2f}, AUC = {:.2f} , F1-Score = {:.2f}".format(
                     acc, sklearn_roc_auc_score, f1_scr
                 )
             )
-            app_logger.info(
+            self.app_logger.info(
                 "Experiment - Scoring: Sensitivity = {:.2f}, specificity = {:.2f}".format(
                     sensitivity, specificity
                 )
             )
         except Exception as e:
-            app_logger.error(f"Error calculating the performance metrics: {e}")
+            self.app_logger.error(f"Error calculating the performance metrics: {e}")
             raise ExperimentError(e)
 
         return dict_scores, dict_predictions
@@ -221,11 +229,10 @@ class BasicExperiment:
                 name=self.name_model,
                 parameters=self.parameters_model,
                 path_to_model=self.path_to_save_experiment,
+                app_logger=self.app_logger,
             )
 
         folds_train, folds_test = self.dataset.get_k_audio_subsets_multiprocess(
-            target_class_for_fold=self.target_class,
-            target_label_for_fold=self.target_label,
             acoustics_feat_name=self.feature_name,
             test_size=self.test_size,
             k_folds=self.k_fold,
@@ -265,14 +272,14 @@ class BasicExperiment:
 
         self.experiment_performance = model_performance_for_each_fold
         self.experiment_predictions = predictions_for_each_fold
-        app_logger.info(f"Experiment - Training phase completed.")
+        self.app_logger.info(f"Experiment - Training phase completed.")
 
         self.save_as_a_serialized_object()
         return model_performance_for_each_fold
 
     def record_experiment(self):
         if not self.mlflow_service.is_up():
-            app_logger.error(
+            self.app_logger.error(
                 "MLFlow is not running. The experiment will not be recorded."
             )
             raise ConnectionError("MLFlow is not running.")
@@ -292,5 +299,5 @@ class BasicExperiment:
                     seed=self.seed,
                 )
             except Exception as e:
-                app_logger.error(f"Error recording the experiment: {e}")
+                self.app_logger.error(f"Error recording the experiment: {e}")
                 raise ExperimentError(e)

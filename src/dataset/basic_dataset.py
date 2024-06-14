@@ -1,9 +1,11 @@
+import logging
 import multiprocessing
 import os
 import pickle
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from sys import platform
+from typing import Tuple, Dict
 
 import numpy as np
 import pandas as pd
@@ -13,7 +15,6 @@ from sklearn.model_selection import KFold, train_test_split
 import src.features.audio_processor
 from src.exceptions import MetadataError, AudioProcessingError
 from src.features.audio_processor import AudioProcessor
-from src.logger import app_logger
 
 
 def increase_open_file_limit(new_limit=100000):
@@ -58,6 +59,12 @@ class LocalDataset(BaseModel):
 
     name: str
     storage_path: str
+    app_logger: logging.Logger
+
+    column_with_ids: str
+    column_with_target_class: str
+    column_with_label_of_class: str
+
     filters: dict = {}
     raw_metadata: pd.DataFrame = pd.DataFrame()
     post_processed_metadata: pd.DataFrame = pd.DataFrame()
@@ -75,11 +82,13 @@ class LocalDataset(BaseModel):
             with open(path_to_save_the_dataset, "wb") as file:
                 pickle.dump(self, file)
 
-            app_logger.info(
+            self.app_logger.info(
                 f"LocalDataset - The object was saved to {path_to_save_the_dataset}"
             )
         except Exception as e:
-            app_logger.error(f"LocalDataset - Saving the dataset fails. Error: {e}")
+            self.app_logger.error(
+                f"LocalDataset - Saving the dataset fails. Error: {e}"
+            )
             raise MetadataError(e)
 
     def load_dataset_from_a_serialized_object(self, path_to_object: str = None):
@@ -90,7 +99,9 @@ class LocalDataset(BaseModel):
             with open(path_to_object, "rb") as file:
                 dataset = pickle.load(file)
         except Exception as e:
-            app_logger.error(f"LocalDataset - Loading the dataset fails. Error: {e}")
+            self.app_logger.error(
+                f"LocalDataset - Loading the dataset fails. Error: {e}"
+            )
             raise MetadataError(e)
 
         return dataset
@@ -101,12 +112,12 @@ class LocalDataset(BaseModel):
             with open(path_to_metadata, "r") as file:
                 self.raw_metadata = pd.read_csv(file, **kwargs)
                 self.raw_metadata.drop_duplicates(inplace=True)
-            app_logger.info("LocalDataset - The CSV file was successful read")
+            self.app_logger.info("LocalDataset - The CSV file was successful read")
         except ValueError as e:
-            app_logger.error(f"LocalDataset - Pandas failed reading the CSV: {e}")
+            self.app_logger.error(f"LocalDataset - Pandas failed reading the CSV: {e}")
             raise MetadataError(f"{e}")
         except FileNotFoundError as e:
-            app_logger.error(f"LocalDataset - The file wasn´t found: {e}")
+            self.app_logger.error(f"LocalDataset - The file wasn´t found: {e}")
             raise MetadataError(f"{e}")
 
     def sample_metadata(self, fraction: float = 0.1, seed: int = 42):
@@ -115,21 +126,21 @@ class LocalDataset(BaseModel):
     def transform_metadata(self, transformations: list):
         if self.raw_metadata.empty:
             message = "LocalDataset - Metadata is empty. Please, load a metadata first."
-            app_logger.error(message)
+            self.app_logger.error(message)
             raise ValueError(message)
         if not transformations:
             message = "LocalDataset - No transformations were provided."
-            app_logger.error(message)
+            self.app_logger.error(message)
             raise ValueError(message)
         else:
             try:
-                app_logger.info(
+                self.app_logger.info(
                     f"LocalDataset - Starting {len(transformations)} transformations over metadata"
                 )
                 df = self.raw_metadata.copy(deep=False)
                 for index, transformation in enumerate(transformations):
                     df = transformation(df)
-                    app_logger.debug(
+                    self.app_logger.debug(
                         f"LocalDataset - Transformation #{index + 1} finished successfully"
                     )
 
@@ -158,8 +169,8 @@ class LocalDataset(BaseModel):
             column_name
         ].apply(lambda x: os.path.join(path, x + extension))
 
-    @staticmethod
     def get_index_for_1_fold(
+            self,
             exp_metadata: pd.DataFrame,
             target_class_for_fold: str,
             target_label_for_fold: str,
@@ -181,7 +192,7 @@ class LocalDataset(BaseModel):
             random_state=seed,
             shuffle=True,
         )
-        app_logger.debug(
+        self.app_logger.debug(
             f"LocalDataset - Subset creation-"
             f" Results: {pat_train.shape[0]} training objects & {pat_test.shape[0]} test objects"
         )
@@ -204,13 +215,13 @@ class LocalDataset(BaseModel):
         :param seed: Random seed for the split
         :return: A dictionary with the train and test subsets
         """
-        app_logger.info(
+        self.app_logger.info(
             f"LocalDataset - Subsets creation- Starting the creation of train and test subsets"
         )
 
         # Prepare the metadata
         if self.post_processed_metadata.empty:
-            app_logger.warning(
+            self.app_logger.warning(
                 "LocalDataset - Not transformation detected over the metadata."
                 "Making the subsets using the original metadata."
             )
@@ -235,13 +246,13 @@ class LocalDataset(BaseModel):
             folds_data[0] = exp_metadata
 
             # Log the lengths of the subsets
-            app_logger.info(
+            self.app_logger.info(
                 "LocalDataset - Subsets creation- Train and test subsets creation successful. "
                 f"Train subset: {exp_metadata[exp_metadata['subset'] == 'train'].shape[0]} & "
                 f"Test subset: {exp_metadata[exp_metadata['subset'] == 'test'].shape[0]}"
             )
         except Exception as e:
-            app_logger.error(
+            self.app_logger.error(
                 f"LocalDataset - Subsets creation - The subsets creation fails. Error: {e}"
             )
             raise MetadataError(e)
@@ -251,12 +262,12 @@ class LocalDataset(BaseModel):
     def _make_k_fold_subsets(
             self, target_class_for_fold: str, k_fold: int, seed: int
     ) -> dict:
-        app_logger.info(
+        self.app_logger.info(
             f"LocalDataset - Subsets creation- Starting the creation of {k_fold}-folds"
         )
         # Prepare the metadata
         if self.post_processed_metadata.empty:
-            app_logger.warning(
+            self.app_logger.warning(
                 "LocalDataset - Not transformation detected over the metadata."
                 "Making the subsets using the original metadata."
             )
@@ -283,17 +294,17 @@ class LocalDataset(BaseModel):
                     test_index, fold_metadata.columns.get_loc("subset")
                 ] = "test"
                 folds_data[fold_index] = fold_metadata
-                app_logger.info(
+                self.app_logger.info(
                     f"LocalDataset - Subsets creation- {fold_index + 1} fold created. "
                     f"Train subset: {fold_metadata[fold_metadata['subset'] == 'train'].shape[0]} & "
                     f"Test subset: {fold_metadata[fold_metadata['subset'] == 'test'].shape[0]}"
                 )
 
-            app_logger.info(
+            self.app_logger.info(
                 f"LocalDataset - Subsets creation- All folds created successfully."
             )
         except Exception as e:
-            app_logger.error(
+            self.app_logger.error(
                 f"LocalDataset - Subsets creation- K-folds process fails. Error: {e}"
             )
             raise MetadataError(e)
@@ -304,10 +315,10 @@ class LocalDataset(BaseModel):
             self,
             k_folds: int,
             test_size: float,
-            target_class_for_fold: str,
-            target_label_for_fold: str,
             seed: int,
     ) -> dict:
+        target_class_for_fold = self.column_with_target_class
+        target_label_for_fold = self.column_with_label_of_class
 
         if k_folds <= 1:
             folds_data = self._make_1_fold_subsets(
@@ -327,45 +338,61 @@ class LocalDataset(BaseModel):
 # Create a class child class of LocalDataset with the name "AudioDataset"
 class AudioDataset(LocalDataset):
     config_audio: dict
+    dataset_raw_data_path: str
+
     raw_audio_data: dict = {}
     acoustic_feat_data: dict = {}
 
-    def _create_an_audio_processor(self):
+    class Config:
+        arbitrary_types_allowed = True
+
+    def _create_an_audio_processor(self) -> AudioProcessor:
         return AudioProcessor(arguments=self.config_audio)
 
     def load_raw_data(
             self,
-            column_with_path: str = "audio_id",
             num_cores: int = multiprocessing.cpu_count(),
-    ):
-        if self.raw_audio_data and self.raw_audio_data is not None:
+    ) -> Dict[str, np.ndarray]:
+        if len(self.raw_audio_data) != 0 and self.raw_audio_data is not None:
             message = "AudioDataset - The raw audio data is already loaded."
-            app_logger.warning(message)
+            self.app_logger.warning(message)
             raise ValueError(message)
+
+        if self.post_processed_metadata.empty:
+            self.app_logger.warning(
+                "AudioDataset - No post-processed metadata found. Loading raw data using raw metadata."
+            )
+            self.post_processed_metadata = self.raw_metadata
+
+        self.transform_column_id_2_data_path(
+            column_name=self.column_with_ids,
+            path=self.dataset_raw_data_path,
+            extension=".wav",
+        )
 
         try:
             feature_extractor = self._create_an_audio_processor()
             dict_ids_to_raw_data = feature_extractor.load_all_wav_files_from_dataset(
                 dataset=self.post_processed_metadata,
-                name_column_with_path=column_with_path,
+                name_column_with_path=self.column_with_ids,
                 num_cores=num_cores,
             )
 
             # Create a dictionary of dictionaries with metadata and numpy arrays
             self.raw_audio_data = dict_ids_to_raw_data
 
-            app_logger.info(
+            self.app_logger.info(
                 f"AudioDataset - Loading raw data successful: {len(self.raw_audio_data)} raw examples."
             )
         except Exception as e:
-            app_logger.error(
+            self.app_logger.error(
                 f"AudioDataset - Loading raw data fails. Error: {e}",
             )
             raise AudioProcessingError(e)
 
         return dict_ids_to_raw_data
 
-    def _check_if_feat_is_already_extracted(self, feat_name: str):
+    def _check_if_feat_is_already_extracted(self, feat_name: str) -> bool:
         is_acoustic_feat_data_valid = len(self.acoustic_feat_data) == len(
             self.raw_audio_data
         )
@@ -385,11 +412,11 @@ class AudioDataset(LocalDataset):
             self,
             feat_name: str = None,
             num_cores: int = multiprocessing.cpu_count(),
-    ):
+    ) -> Dict[str, np.ndarray]:
 
         if not self.raw_audio_data:
-            app_logger.warning("AudioDataset - No raw audio data loaded.")
-            app_logger.info("AudioDataset - Loading raw data using a path.")
+            self.app_logger.warning("AudioDataset - No raw audio data loaded.")
+            self.app_logger.info("AudioDataset - Loading raw data using a path.")
             self.load_raw_data_using_a_path()
 
         if feat_name is not None:
@@ -407,7 +434,7 @@ class AudioDataset(LocalDataset):
                 for id_, feat in dict_ids_to_feats.items()
             }
         except Exception as e:
-            app_logger.error(
+            self.app_logger.error(
                 f"AudioDataset - Extracting acoustic features fails. Error: {e}",
             )
             raise AudioProcessingError(e)
@@ -417,10 +444,10 @@ class AudioDataset(LocalDataset):
     def extract_all_acoustic_features_supported(
             self,
             num_cores: int = multiprocessing.cpu_count(),
-    ):
+    ) -> Dict[str, dict]:
         if not self.raw_audio_data:
-            app_logger.warning("AudioDataset - No raw audio data loaded.")
-            app_logger.info("AudioDataset - Loading raw data using a path.")
+            self.app_logger.warning("AudioDataset - No raw audio data loaded.")
+            self.app_logger.info("AudioDataset - Loading raw data using a path.")
             self.load_raw_data_using_a_path()
 
         supported_feats = src.features.audio_processor.SUPPORTED_FEATS
@@ -447,7 +474,7 @@ class AudioDataset(LocalDataset):
                 self.save_dataset_as_a_serialized_object()
 
             except Exception as e:
-                app_logger.error(
+                self.app_logger.error(
                     f"AudioDataset - Extracting acoustic features fails. Error: {e}",
                 )
                 raise AudioProcessingError(e)
@@ -458,30 +485,31 @@ class AudioDataset(LocalDataset):
     def _process_fold(
             dataframe: pd.DataFrame,
             fold: int,
-            target_label_for_fold: str,
+            column_with_ids: str,
+            column_with_labels_for_fold: str,
             acoustics_feat_name: str,
             acoustic_feat_data: dict,
             subset_at_sample_lv: bool = False,
-    ):
+    ) -> Tuple[int, dict]:
         try:
             # Get the column with target_label_for_fold and subset
             test_metadata = dataframe[dataframe["subset"] == "test"][
-                ["audio_id", target_label_for_fold]
+                [column_with_ids, column_with_labels_for_fold]
             ]
             train_metadata = dataframe[dataframe["subset"] == "train"][
-                ["audio_id", target_label_for_fold]
+                [column_with_ids, column_with_labels_for_fold]
             ]
 
-            test_ids = set(test_metadata["audio_id"])
-            train_ids = set(train_metadata["audio_id"])
+            test_ids = set(test_metadata[column_with_ids])
+            train_ids = set(train_metadata[column_with_ids])
 
             train_feats, train_labels, train_audio_id = [], [], []
             test_feats, test_labels, test_audio_id = [], [], []
             for id_, feats_of_id in acoustic_feat_data.items():
                 feat_of_id_sample = np.array(feats_of_id[acoustics_feat_name])
 
-                label_of_id_sample = dataframe[dataframe["audio_id"] == id_][
-                    target_label_for_fold
+                label_of_id_sample = dataframe[dataframe[column_with_ids] == id_][
+                    column_with_labels_for_fold
                 ]
                 label_of_id_sample = np.array(
                     [label_of_id_sample] * feat_of_id_sample.shape[0]
@@ -520,9 +548,13 @@ class AudioDataset(LocalDataset):
                 "train": {
                     "X": train_feats,
                     "y": train_labels,
-                    "audio_id": train_audio_id,
+                    column_with_ids: train_audio_id,
                 },
-                "test": {"X": test_feats, "y": test_labels, "audio_id": test_audio_id},
+                "test": {
+                    "X": test_feats,
+                    "y": test_labels,
+                    column_with_ids: test_audio_id,
+                },
             }
 
             return fold, result
@@ -531,21 +563,17 @@ class AudioDataset(LocalDataset):
 
     def get_k_audio_subsets(
             self,
-            target_class_for_fold: str,
-            target_label_for_fold: str,
             acoustics_feat_name: str,
             k_folds: int = 5,
             seed: int = 42,
             test_size: float = 0.2,
             subset_at_sample_lv: bool = False,
-    ):
+    ) -> Tuple[dict, dict]:
 
         fold_data: dict = self.get_k_subsets(
             seed=seed,
             k_folds=k_folds,
             test_size=test_size,
-            target_class_for_fold=target_class_for_fold,
-            target_label_for_fold=target_label_for_fold,
         )
 
         folds_test_ids_to_feats_and_labels = {fold: {} for fold in fold_data.keys()}
@@ -556,7 +584,8 @@ class AudioDataset(LocalDataset):
                 _, result = self._process_fold(
                     dataframe,
                     fold,
-                    target_label_for_fold,
+                    self.column_with_ids,
+                    self.column_with_label_of_class,
                     acoustics_feat_name,
                     self.acoustic_feat_data,
                     subset_at_sample_lv,
@@ -566,7 +595,7 @@ class AudioDataset(LocalDataset):
                 folds_test_ids_to_feats_and_labels[fold] = result["test"]
 
         except Exception as e:
-            app_logger.error(
+            self.app_logger.error(
                 f"AudioDataset - Error while creating the folds. Error: {e}"
             )
             raise MetadataError(e)
@@ -575,26 +604,20 @@ class AudioDataset(LocalDataset):
 
     def get_k_audio_subsets_multiprocess(
             self,
-            target_class_for_fold: str,
-            target_label_for_fold: str,
             acoustics_feat_name: str,
-            seed: int = 42,
             k_folds: int = 5,
+            seed: int = 42,
             test_size: float = 0.2,
             subset_at_sample_lv: bool = False,
-    ):
+    ) -> Tuple[dict, dict]:
 
         fold_data: dict = self.get_k_subsets(
-            seed=seed,
-            k_folds=k_folds,
-            test_size=test_size,
-            target_class_for_fold=target_class_for_fold,
-            target_label_for_fold=target_label_for_fold,
+            seed=seed, k_folds=k_folds, test_size=test_size
         )
 
         self.config_audio["feature_type"] = acoustics_feat_name
         if not self._check_if_feat_is_already_extracted(acoustics_feat_name):
-            app_logger.info(
+            self.app_logger.info(
                 f"AudioDataset - Feats not found. Extracting the feature {acoustics_feat_name}"
             )
             self.extract_acoustic_features(acoustics_feat_name)
@@ -611,7 +634,8 @@ class AudioDataset(LocalDataset):
                         self._process_fold,
                         dataframe,
                         fold,
-                        target_label_for_fold,
+                        self.column_with_ids,
+                        self.column_with_label_of_class,
                         acoustics_feat_name,
                         self.acoustic_feat_data,
                         subset_at_sample_lv,
@@ -624,7 +648,7 @@ class AudioDataset(LocalDataset):
                     folds_train_ids_to_feats_and_labels[fold] = result["train"]
                     folds_test_ids_to_feats_and_labels[fold] = result["test"]
         except Exception as e:
-            app_logger.error(
+            self.app_logger.error(
                 f"AudioDataset - Error while creating the folds. Error: {e}"
             )
             raise MetadataError(e)

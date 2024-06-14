@@ -3,7 +3,8 @@ import shutil
 
 import pytest
 
-from model.model_object import ModelBuilder, SUPPORTED_MODELS
+from src.logger import BasicLogger
+from src.model.model_object import ModelBuilder, SUPPORTED_MODELS
 from test import ROOT_PATH
 
 
@@ -15,10 +16,14 @@ class TestModelBuilderShould:
 
         cls.default_model = SUPPORTED_MODELS
 
+        cls.app_logger = BasicLogger(
+            log_file=os.path.join(cls.str_path_temp_folder, "logs", "experiment.log")
+        ).get_logger()
+
     @classmethod
     def teardown_class(cls):
         # Remove the temporary files after testing
-        shutil.rmtree(cls.str_path_temp_folder)
+        shutil.rmtree(cls.str_path_temp_folder, ignore_errors=True)
 
     @pytest.mark.parametrize("model_name", SUPPORTED_MODELS.keys())
     def test_valid_build_a_model(self, model_name):
@@ -26,6 +31,7 @@ class TestModelBuilderShould:
         model_builder = ModelBuilder(
             name=model_name,
             path_to_model=self.str_path_temp_folder,
+            app_logger=self.app_logger,
         )
 
         # Act
@@ -41,6 +47,7 @@ class TestModelBuilderShould:
             model_builder = ModelBuilder(
                 name=model_name,
                 path_to_model=self.str_path_temp_folder,
+                app_logger=self.app_logger,
             )
             model_builder.build_model()
 
@@ -50,6 +57,7 @@ class TestModelBuilderShould:
         model_builder = ModelBuilder(
             name=model_name,
             path_to_model=self.str_path_temp_folder,
+            app_logger=self.app_logger,
         )
         model_builder.build_model()
         # Act
@@ -62,6 +70,7 @@ class TestModelBuilderShould:
         model_builder = ModelBuilder(
             name="LogisticRegression",
             path_to_model=self.str_path_temp_folder,
+            app_logger=self.app_logger,
         )
 
         with pytest.raises(IOError):
@@ -73,6 +82,7 @@ class TestModelBuilderShould:
         model_builder = ModelBuilder(
             name=model_name,
             path_to_model=self.str_path_temp_folder,
+            app_logger=self.app_logger,
         )
         model_builder.build_model()
         model_builder.save_as_a_serialized_object()
@@ -88,6 +98,7 @@ class TestModelBuilderShould:
         model_builder = ModelBuilder(
             name="LogisticRegression",
             path_to_model=self.str_path_temp_folder,
+            app_logger=self.app_logger,
         )
 
         with pytest.raises(IOError):

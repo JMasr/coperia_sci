@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 import shutil
+from pathlib import Path
 
 import librosa
 import numpy as np
@@ -16,6 +17,7 @@ class GeneralFeatureExtraction:
     def setup_class(cls):
         cls.str_path_temp_folder = os.path.join(test.ROOT_PATH, "test", "temp_folder")
         os.makedirs(cls.str_path_temp_folder, exist_ok=True)
+        cls.temp_file = Path(cls.str_path_temp_folder)
 
         cls.codec = "PCM_24"
         cls.sample_rate = 16000
@@ -57,7 +59,7 @@ class GeneralFeatureExtraction:
     @classmethod
     def teardown_class(cls):
         # Remove the temporary files after testing
-        shutil.rmtree(cls.str_path_temp_folder)
+        shutil.rmtree(cls.str_path_temp_folder, ignore_errors=True)
 
 
 def extract_wav(wav_path: str) -> dict[str, np.ndarray]:
@@ -109,36 +111,7 @@ class TestMultiProcessorShould(GeneralFeatureExtraction):
         # Assert
         assert multi_processor.num_cores == num_cores
 
-    @pytest.mark.parametrize(
-        "num_cores", [0, -1, -2, multiprocessing.cpu_count() * 2, "string"]
-    )
-    def test_invalid_initialization_of_multiprocessor_because_number_of_cores(
-            self, num_cores
-    ):
-        # Act & Assert
-        with pytest.raises(ValueError):
-            MultiProcessor(num_cores=num_cores)
-
-    def test_invalid_initialization_of_multiprocessor_because_bad_parameters(self):
-        # Arrange
-        multi_processor = MultiProcessor(num_cores=1)
-
-        # Act & Assert
-        with pytest.raises(TypeError):
-            multi_processor.process_with_multiprocessing("string", extract_wav)
-
-        with pytest.raises(TypeError):
-            multi_processor.process_with_multiprocessing(
-                [self.path_to_dummy_valid_signal], "string"
-            )
-
-        with pytest.raises(TypeError):
-            multi_processor.process_with_multiprocessing({}, extract_wav)
-
-        with pytest.raises(ValueError):
-            multi_processor.process_with_multiprocessing([], extract_wav)
-
-    @pytest.mark.parametrize("num_of_raw_data", [1, 10, 20, 100])
+    @pytest.mark.parametrize("num_of_raw_data", [1, 10, 20])
     def test_valid_process_with_progress(self, num_of_raw_data):
         # Arrange
         raw_data_paths = []

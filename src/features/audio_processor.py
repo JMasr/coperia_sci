@@ -24,8 +24,6 @@ from spafe.features.psrcc import psrcc
 from spafe.features.rplp import plp, rplp
 from tqdm import tqdm
 
-from src.logger import app_logger
-
 SUPPORTED_FEATS = [
     "compare_2016_energy",
     "compare_2016_llds",
@@ -95,7 +93,6 @@ class MultiProcessor:
                     result = future.result()
                     results.update(result)
                 except Exception as e:
-                    app_logger.error(f"An error occurred during processing {path}: {e}")
                     raise RuntimeError(
                         f"An error occurred during processing {path}: {e}"
                     )
@@ -114,8 +111,9 @@ class MultiProcessor:
             return dict_with_id_and_features_from_raw_data
 
         except (TypeError, ValueError, FileNotFoundError, RuntimeError) as e:
-            app_logger.error(f"An error occurred during multiprocessing: {e}")
-            raise
+            raise RuntimeError(
+                f"An error occurred during multiprocessing: {str(e)}"
+            ) from e
 
 
 class AudioProcessor:
@@ -166,7 +164,6 @@ class AudioProcessor:
             else:
                 raise ValueError(f"Feature type {self.feature_type} not supported yet")
         except Exception as e:
-            app_logger.error(f"An error occurred during feature extraction: {str(e)}")
             raise RuntimeError(f"An error occurred during feature extraction: {str(e)}")
 
     def _create_feature_transformer(self):
@@ -543,7 +540,6 @@ class AudioProcessor:
 
     def _read_a_wav_file(self, wav_path: str) -> tuple[ndarray, int]:
         if os.path.getsize(wav_path) <= 44:
-            app_logger.error(f"File {wav_path} is too small to be a valid wav file.")
             raise ValueError(f"File {wav_path} is too small to be a valid wav file.")
 
         try:
@@ -601,7 +597,6 @@ class AudioProcessor:
         name_column_with_path: str,
         num_cores: int = None,
     ) -> dict:
-        app_logger.info("Feature Extractor - Loading all wav files from the dataset")
         if num_cores is None:
             num_cores = multiprocessing.cpu_count()
 
@@ -615,15 +610,9 @@ class AudioProcessor:
 
         except Exception as e:
             message = f"An error occurred during feature extraction: {str(e)}"
-            app_logger.error(message)
             raise RuntimeError(message)
 
         if len(raw_data_matrix) != len(raw_data_paths):
-            app_logger.warning(
-                "Some files were not loaded on parallel processing. Processing them sequentially."
-            )
-
-            # Get the missing files form raw_data_paths that aren´t in raw_data_matrix
             missing_files = list(set(raw_data_paths) - set(raw_data_matrix.keys()))
 
             for missing_file in missing_files:
@@ -631,10 +620,6 @@ class AudioProcessor:
                     self.simple_thread_wav_2_dict_with_path_and_data(missing_file)
                 )
                 raw_data_matrix.update(missing_file_raw_data)
-
-        app_logger.info(
-            "Feature Extractor - All wav files from the dataset were loaded"
-        )
         return raw_data_matrix
 
     def extract_features_from_raw_data(
@@ -644,10 +629,6 @@ class AudioProcessor:
     ) -> dict[str, np.ndarray]:
         if num_cores is None:
             num_cores = multiprocessing.cpu_count()
-
-        app_logger.info(
-            f"Feature Extractor - Extracting **{self.feature_type}** from the raw data"
-        )
 
         def worker(id_data, raw_data):
             return self.simple_thread_extract_features_from_raw_data(
@@ -673,16 +654,10 @@ class AudioProcessor:
                         result = future.result()
                         features.update(result)
                     except Exception as e:
-                        app_logger.error(
+                        raise RuntimeError(
                             f"An error occurred during feature extraction for {id_data}: {str(e)}"
                         )
-                        raise RuntimeError(
-                            f"An error occurred during feature extraction: {str(e)}"
-                        )
-
         except Exception as e:
-            app_logger.error(f"An error occurred during feature extraction: {str(e)}")
             raise RuntimeError(f"An error occurred during feature extraction: {str(e)}")
 
-        app_logger.info("Feature Extractor - Feature extraction completed!")
         return features

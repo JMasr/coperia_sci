@@ -1,3 +1,4 @@
+import logging
 import os.path
 import pickle
 import types
@@ -9,7 +10,6 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.svm import SVC
 
 from src.exceptions import ModelError
-from src.logger import app_logger
 
 DEFAULT_CONFIG = types.MappingProxyType(
     {
@@ -69,11 +69,15 @@ SUPPORTED_MODELS = types.MappingProxyType(
 class ModelBuilder(BaseModel):
     name: str
     path_to_model: str
+    app_logger: logging.Logger
 
     seed: int = 42
     model: object = None
     is_trained: bool = False
     parameters: dict = None
+
+    class Config:
+        arbitrary_types_allowed = True
 
     def _check_model_parameters(self):
         if self.name not in DEFAULT_CONFIG.keys():
@@ -83,7 +87,7 @@ class ModelBuilder(BaseModel):
             # Check that all parameters in the default configuration are present
             for key in DEFAULT_CONFIG[self.name].keys():
                 if key not in self.parameters.keys():
-                    app_logger.warning(
+                    self.app_logger.warning(
                         f"Parameter {key} not found in the model configuration."
                         f" Using default value: {DEFAULT_CONFIG[self.name][key]}"
                     )
@@ -92,7 +96,7 @@ class ModelBuilder(BaseModel):
             # Check that all parameters in the model configuration are valid
             for key in self.parameters.keys():
                 if key not in DEFAULT_CONFIG[self.name].keys():
-                    app_logger.warning(
+                    self.app_logger.warning(
                         f"Parameter {key} not found in the default configuration."
                         f" Removing parameter from the model configuration."
                     )
@@ -108,11 +112,9 @@ class ModelBuilder(BaseModel):
             with open(path_to_save, "wb") as file:
                 pickle.dump(self.model, file)
         except Exception as e:
-            message = f"An error occurred while saving the model: {e}"
-            app_logger.error(message)
-            raise IOError(message)
+            raise IOError(f"An error occurred while saving the model: {e}")
 
-        app_logger.info(f"Model saved in {path_to_save}")
+        self.app_logger.info(f"Model saved in {path_to_save}")
 
     def load_model_from_a_serialized_object(self, path_to_load: str = None):
         if path_to_load:
@@ -124,11 +126,9 @@ class ModelBuilder(BaseModel):
             with open(path_to_load, "rb") as file:
                 self.model = pickle.load(file)
         except Exception as e:
-            message = f"An error occurred while loading the model: {e}"
-            app_logger.error(message)
-            raise IOError(message)
+            raise IOError(f"An error occurred while loading the model: {e}")
 
-        app_logger.info(f"Model loaded from {path_to_load}")
+        self.app_logger.info(f"Model loaded from {path_to_load}")
         return self.model
 
     def build_model(self):
@@ -143,17 +143,17 @@ class ModelBuilder(BaseModel):
                 model = SUPPORTED_MODELS[self.name]
                 model.set_params(**self.parameters)
             else:
-                app_logger.warning(
+                self.app_logger.warning(
                     f"No parameters found for the model. Using default configuration."
                 )
                 model = SUPPORTED_MODELS[self.name]
         except Exception as e:
-            message = f"ModelBuilder - An error occurred while loading the model: {e}"
-            app_logger.error(message)
-            raise ModelError(message)
+            raise ModelError(
+                f"ModelBuilder - An error occurred while loading the model: {e}"
+            )
 
         self.model = model
-        app_logger.info(f"ModelBuilder - {self.name} build successfully.")
+        self.app_logger.info(f"ModelBuilder - {self.name} build successfully.")
 
     def train_model(self, x, y):
         if self.model is None:
@@ -164,11 +164,10 @@ class ModelBuilder(BaseModel):
         try:
             self.model.fit(x, y)
             self.is_trained = True
-            app_logger.info(f"ModelBuilder - Model trained successfully.")
+            self.app_logger.info(f"ModelBuilder - Model trained successfully.")
         except Exception as e:
-            app_logger.error(
+            raise ModelError(
                 f"ModelBuilder - An error occurred while training the model: {e}"
             )
-            raise ModelError(e)
 
         return self.model

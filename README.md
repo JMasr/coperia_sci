@@ -17,6 +17,8 @@ The project is developed by the [Multimedia Technologies Group](https://gtm.uvig
 Center, Universidade de Vigo**, in collaboration with the "Persistent COVID Unit of the Ourense Hospital" and primary
 care centers in the health area.
 
+<img title="Patient distribution of the clinical trial" src="/images/subject_distribution.png" alt="Patient distribution of COPERIA prject.">
+
 ## Features
 
 * Data pipelines for processing voice and metadata data from the COPERIA project.
@@ -33,7 +35,6 @@ care centers in the health area.
 ```bash
 git clone https://github.com/JMasr/corilga_api.git
 ```
-
 2. Navigate to the project directory:
 
 ```bash

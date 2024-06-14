@@ -49,5 +49,5 @@ class BasicLogger:
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
 
-    def get_logger(self):
+    def get_logger(self) -> logging.Logger:
         return self.logger
