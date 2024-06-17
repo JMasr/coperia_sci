@@ -17,7 +17,11 @@ The project is developed by the [Multimedia Technologies Group](https://gtm.uvig
 Center, Universidade de Vigo**, in collaboration with the "Persistent COVID Unit of the Ourense Hospital" and primary
 care centers in the health area.
 
-<img title="Patient distribution of the clinical trial" src="/images/subject_distribution.png" alt="Patient distribution of COPERIA prject.">
+<img title="Patients distribution of the clinical trial" src="/images/subject_distribution.png" alt="Patient distribution of COPERIA project.">
+<p style="text-align: center;">Fig. 1: Patient distribution of the clinical trial</p>
+
+<img title="Recordings distribution of the clinical trial" src="/images/recordings_distribution.png" alt="Recordings distribution of COPERIA project.">
+<p style="text-align: center;">Fig. 2: Recordings distribution of the clinical trial</p>
 
 ## Features
 
