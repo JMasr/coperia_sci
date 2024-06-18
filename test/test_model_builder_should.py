@@ -63,7 +63,9 @@ class TestModelBuilderShould:
         # Act
         model_builder.save_as_a_serialized_object()
         # Assert
-        assert os.path.exists(os.path.join(self.str_path_temp_folder, f"{model_name}.pkl"))
+        assert os.path.exists(
+            os.path.join(self.str_path_temp_folder, f"{model_name}.pkl")
+        )
 
     def test_invalid_save_model(self):
         # Arrange
@@ -102,7 +104,9 @@ class TestModelBuilderShould:
         )
 
         with pytest.raises(IOError):
-            model_builder.load_model_from_a_serialized_object(path_to_load="invalid_path")
+            model_builder.load_model_from_a_serialized_object(
+                path_to_load="invalid_path"
+            )
 
 
 if __name__ == "__main__":

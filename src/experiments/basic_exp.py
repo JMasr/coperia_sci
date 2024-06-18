@@ -58,7 +58,9 @@ class BasicExperiment:
         self.experiment_predictions = None
 
         self.app_logger = app_logger
-        self.mlflow_service = MlFlowService(uri="http://127.0.0.1", port=5000, app_logger=app_logger)
+        self.mlflow_service = MlFlowService(
+            uri="http://127.0.0.1", port=5000, app_logger=app_logger
+        )
 
     class Config:
         arbitrary_types_allowed = True
@@ -170,7 +172,11 @@ class BasicExperiment:
             matrix_labels = matrix_labels.ravel()
 
             score, permutation_scores, pvalue = permutation_test_score(
-                estimator, matrix_feats, matrix_labels, random_state=self.seed, n_jobs=-1
+                estimator,
+                matrix_feats,
+                matrix_labels,
+                random_state=self.seed,
+                n_jobs=-1,
             )
 
             # Create a dictionary of scores
@@ -256,7 +262,8 @@ class BasicExperiment:
             )
 
             fold_predictions_test_set["ids"] = [
-                audio_id.split("/")[-1] for audio_id in test_data[self.dataset.column_with_ids]
+                audio_id.split("/")[-1]
+                for audio_id in test_data[self.dataset.column_with_ids]
             ]
             df_index_2_labels_scores_predictions = pd.DataFrame(
                 {

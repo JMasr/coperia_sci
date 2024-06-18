@@ -5,7 +5,12 @@ import requests
 
 
 class MlFlowService:
-    def __init__(self, app_logger: logging.Logger, uri: str = "http://127.0.0.1", port: int = 5000):
+    def __init__(
+            self,
+            app_logger: logging.Logger,
+            uri: str = "http://127.0.0.1",
+            port: int = 5000,
+    ):
         self.port = port
         self.tracking_uri = f"{uri}:{port}"
 
