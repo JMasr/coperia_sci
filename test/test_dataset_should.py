@@ -61,8 +61,8 @@ class TestLocalDatasetShould:
         cls.temp_file = Path(cls.str_path_temp_file)
 
         cls.num_rows = 50
-        cls.fake_dataframe = mock_a_dataframe_with_metadata(cls.num_rows)
-        cls.fake_dataframe.to_csv(cls.temp_file, index=False, sep=",")
+        cls.mock_dataframe = mock_a_dataframe_with_metadata(cls.num_rows)
+        cls.mock_dataframe.to_csv(cls.temp_file, index=False, sep=",")
 
         # Create a logger
         cls.app_logger = BasicLogger(
@@ -149,9 +149,9 @@ class TestLocalDatasetShould:
         assert not dataset.post_processed_metadata.empty
         assert (
                 dataset.post_processed_metadata["data"]
-                == self.fake_dataframe["data"].astype(int) * 2
+                == self.mock_dataframe["data"].astype(int) * 2
         ).all()
-        assert (dataset.raw_metadata["data"] == self.fake_dataframe["data"]).all()
+        assert (dataset.raw_metadata["data"] == self.mock_dataframe["data"]).all()
 
     def test_invalid_empty_transformations_provided_for_localdataset(self):
         # Arrange
@@ -247,12 +247,12 @@ class TestAudioDatasetShould:
 
         cls.num_rows = 50
         cls.sample_rate = 16000
-        cls.fake_dataframe = mock_a_dataframe_with_metadata_and_audio(
+        cls.mock_dataframe = mock_a_dataframe_with_metadata_and_audio(
             cls.str_path_temp_folder, cls.sample_rate, cls.num_rows
         )
 
         cls.temp_file = Path(os.path.join(cls.str_path_temp_folder, "temp_file.csv"))
-        cls.fake_dataframe.to_csv(cls.temp_file, index=False, sep=",")
+        cls.mock_dataframe.to_csv(cls.temp_file, index=False, sep=",")
 
         # Create defaults configurations for audio processing
         cls.seed = 42
@@ -377,40 +377,15 @@ class TestAudioDatasetShould:
 
     def test_valid_load_raw_data_of_audiodataset(self):
         # Arrange
-        dataset_name = "TEST-DATASET"
-        filter_testing = {"audio_type": ["ALL"], "audio_moment": ["ALL"]}
-        config_audio = {
-            "feature_type": "compare_2016_energy",
-            "top_db": 30,
-            "pre_emphasis_coefficient": 0.97,
-            "resampling_rate": 44100,
-            "n_mels": 64,
-            "n_mfcc": 32,
-            "plp_order": 13,
-            "conversion_approach": "Wang",
-            "f_max": 22050,
-            "f_min": 100,
-            "window_size": 25.0,
-            "hop_length": 10.0,
-            "window_type": "hamming",
-            "normalize": "mvn",
-            "use_energy": True,
-            "apply_mean_norm": True,
-            "apply_vari_norm": True,
-            "compute_deltas_feats": True,
-            "compute_deltas_deltas_feats": True,
-            "compute_opensmile_extra_features": True,
-        }
-
         dataset = AudioDataset(
-            name=dataset_name,
+            name=self.dataset_name,
             storage_path=self.str_path_temp_folder,
             app_logger=self.app_logger,
             column_with_ids="id",
             column_with_target_class="data",
             column_with_label_of_class="label",
-            filters=filter_testing,
-            config_audio=config_audio,
+            filters=self.filter_testing,
+            config_audio=self.config_audio,
             dataset_raw_data_path=self.str_path_temp_folder,
         )
         dataset.load_metadata_from_csv(str(self.temp_file), decimal=",")
