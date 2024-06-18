@@ -61,13 +61,13 @@ pip install -r requirements.txt
 
 ## Acknowledgements
 
-*. This work was supported by the CONECTA COVID programme, co-financed by the European Regional Development Fund (ERDF)
+* This work was supported by the CONECTA COVID programme, co-financed by the European Regional Development Fund (ERDF)
 within the Galicia ERDF operational programme 2014-2020 as part of the EU’s response to the COVID19 pandemic, and
 Axencia Galega de Innovacion (GAIN).
 
-*. This work has received financial support from the Xunta de Galicia (Centro singular de investigación de Galicia
+* This work has received financial support from the Xunta de Galicia (Centro singular de investigación de Galicia
 accreditation 2019-2022).
 
-*. This research has been funded by the Galician Regional Government under project ED431B 2021/24“GPC".
+* This research has been funded by the Galician Regional Government under project ED431B 2021/24"GPC".
 
-*. Thanks to the “Unidad de COVID Persistente del Hospital de Ourense” and the patients involved in the study.
+* Thanks to the “Unidad de COVID Persistente del Hospital de Ourense” and the patients involved in the study.
