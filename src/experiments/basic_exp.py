@@ -256,7 +256,7 @@ class BasicExperiment:
             )
 
             fold_predictions_test_set["ids"] = [
-                audio_id.split("/")[-1] for audio_id in test_data["audio_id"]
+                audio_id.split("/")[-1] for audio_id in test_data[self.dataset.column_with_ids]
             ]
             df_index_2_labels_scores_predictions = pd.DataFrame(
                 {
