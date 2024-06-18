@@ -170,7 +170,7 @@ class BasicExperiment:
             matrix_labels = matrix_labels.ravel()
 
             score, permutation_scores, pvalue = permutation_test_score(
-                estimator, matrix_feats, matrix_labels, random_state=self.seed
+                estimator, matrix_feats, matrix_labels, random_state=self.seed, n_jobs=-1
             )
 
             # Create a dictionary of scores
@@ -227,7 +227,7 @@ class BasicExperiment:
         else:
             model_builder = ModelBuilder(
                 name=self.name_model,
-                parameters=self.parameters_model,
+                parameters=self.parameters_model.copy(),
                 path_to_model=self.path_to_save_experiment,
                 app_logger=self.app_logger,
             )
