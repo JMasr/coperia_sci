@@ -154,15 +154,34 @@ class LocalDataset(BaseModel):
                     f"An error occurred during transforming metadata: {e}"
                 )
 
-    def transform_column_id_2_data_path(
+    def _make_conditions_for_transform_column_id_2_data_path(
             self, column_name: str, path: str, extension: str
-    ):
+    ) -> Tuple[str, str]:
+        # Check if the column exists in the metadata
+        if column_name not in self.post_processed_metadata.columns:
+            raise MetadataError(f"The column {column_name} is not in the metadata.")
+
         # Check if string path is a valid path
         if os.path.exists(path) and os.path.isdir(path):
             path = os.path.abspath(path)
+        else:
+            raise MetadataError(f"The path {path} is not a valid directory.")
+
         # Check if extension has a dot
         if not extension.startswith("."):
             extension = "." + extension
+
+        # Check if the column values end with the extension
+        if self.post_processed_metadata[column_name].str.endswith(extension).all():
+            extension = ""
+        return path, extension
+
+    def transform_column_id_2_data_path(
+            self, column_name: str, path: str, extension: str
+    ):
+        path, extension = self._make_conditions_for_transform_column_id_2_data_path(
+            column_name, path, extension
+        )
 
         # Transform the column values to data paths
         self.post_processed_metadata[column_name] = self.post_processed_metadata[
