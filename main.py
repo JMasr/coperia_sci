@@ -1,3 +1,4 @@
+import argparse
 import os.path
 from pathlib import Path
 
@@ -49,13 +50,20 @@ def make_dicoperia_metadata(
 
 if __name__ == "__main__":
     ROOT_PATH = Path(__file__).parent
-    config_file = Path(os.path.join(ROOT_PATH, "config", "exp_config.json"))
+
+    arguments = argparse.ArgumentParser(description="Run the COPERIA pipeline")
+    arguments.add_argument(
+        "--config_file",
+        type=str,
+        default=os.path.join(ROOT_PATH, "config", "exp_config.json"),
+        help="Path to the configuration file",
+    )
+    args = arguments.parse_args()
+    config_file = Path(args.config_file)
 
     pipeline_app = Pipeline(
         name="COPERIA-Experiment-Pipeline",
         root_path=ROOT_PATH,
         config_file_path=config_file,
     )
-
-    pipeline_app.run_pipeline_with_an_experiment_from_config(make_dicoperia_metadata)
-    pipeline_app.run_pipeline_with_experiments_all_models(make_dicoperia_metadata)
+    pipeline_app.run_pipeline_for_all_model_and_feats(make_dicoperia_metadata)
