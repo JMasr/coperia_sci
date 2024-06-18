@@ -18,8 +18,10 @@ DEFAULT_CONFIG = types.MappingProxyType(
             "max_iter": 40,
             "penalty": "l2",
             "random_state": 42,
-            "solver": "liblinear",
+            "solver": "sag",
+            "multi_class": "auto",
             "class_weight": "balanced",
+            "n_jobs": -1,  # Use all processors
             "verbose": True,
         },
         "RandomForest": {
@@ -31,6 +33,7 @@ DEFAULT_CONFIG = types.MappingProxyType(
             "max_features": "sqrt",
             "class_weight": "balanced",
             "random_state": 42,
+            "n_jobs": -1,  # Use all processors
             "verbose": True,
         },
         "LinearSVM": {
@@ -83,24 +86,27 @@ class ModelBuilder(BaseModel):
         if self.name not in DEFAULT_CONFIG.keys():
             raise ValueError(f"Model {self.name} is not supported.")
 
-        if self.parameters:
+        final_parameters = self.parameters.copy()
+        if final_parameters:
             # Check that all parameters in the default configuration are present
             for key in DEFAULT_CONFIG[self.name].keys():
-                if key not in self.parameters.keys():
+                if key not in final_parameters.keys():
                     self.app_logger.warning(
                         f"Parameter {key} not found in the model configuration."
                         f" Using default value: {DEFAULT_CONFIG[self.name][key]}"
                     )
-                    self.parameters[key] = DEFAULT_CONFIG[self.name][key]
+                    final_parameters[key] = DEFAULT_CONFIG[self.name][key]
 
             # Check that all parameters in the model configuration are valid
-            for key in self.parameters.keys():
+            for key in list(final_parameters.keys()):
                 if key not in DEFAULT_CONFIG[self.name].keys():
                     self.app_logger.warning(
                         f"Parameter {key} not found in the default configuration."
                         f" Removing parameter from the model configuration."
                     )
-                    self.parameters.pop(key)
+                    del final_parameters[key]
+
+        return final_parameters
 
     def save_as_a_serialized_object(self, path_to_save: str = None):
         if path_to_save:
@@ -136,21 +142,25 @@ class ModelBuilder(BaseModel):
         if self.name not in SUPPORTED_MODELS.keys():
             raise ValueError(f"Model {self.name} is not supported.")
 
+        valid_parameters = self.parameters
         try:
-            if self.parameters:
-                self._check_model_parameters()
+            if valid_parameters:
+                valid_parameters = self._check_model_parameters()
 
                 model = SUPPORTED_MODELS[self.name]
-                model.set_params(**self.parameters)
+                model.set_params(**valid_parameters)
             else:
                 self.app_logger.warning(
                     f"No parameters found for the model. Using default configuration."
                 )
                 model = SUPPORTED_MODELS[self.name]
+                valid_parameters = DEFAULT_CONFIG[self.name]
         except Exception as e:
             raise ModelError(
                 f"ModelBuilder - An error occurred while loading the model: {e}"
             )
+        finally:
+            self.parameters = valid_parameters
 
         self.model = model
         self.app_logger.info(f"ModelBuilder - {self.name} build successfully.")
