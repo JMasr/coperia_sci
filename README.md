@@ -23,6 +23,8 @@ care centers in the health area.
 <img title="Recordings distribution of the clinical trial" src="/images/recordings_distribution.png" alt="Recordings distribution of COPERIA project.">
 <p style="text-align: center;">Fig. 2: Recordings distribution of the clinical trial</p>
 
+See more details here: [COPERIA-Dashboard](https://fawn-dashing-guinea.ngrok-free.app/public/dashboard/e680494b-56c5-4430-afea-76ba170c2739?patient_type=&biological_gender=&long_covid=&audio_moment=&audio_type=)
+
 ## Features
 
 * Data pipelines for processing voice and metadata data from the COPERIA project.
