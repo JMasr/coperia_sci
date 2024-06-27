@@ -267,41 +267,47 @@ class Pipeline(BaseModel):
         )
         for model_name in self.supported_models.keys():
             self.configurations_as_dict["model"]["name"] = model_name
+            self.configurations_as_dict["model"]["parameters"] = self.supported_models[model_name]
+
             for feat_name in self.supported_feats:
                 self.configurations_as_dict["audio"]["feature_type"] = feat_name
                 self.run_an_experiment_from_config()
         self.app_logger.info("Pipeline - Pipeline executed successfully.")
 
     def run_pipeline_for_one_model_and_all_feats(
-            self, model_name: str, function_to_apply_over_metadata: callable
+            self, function_to_apply_over_metadata: callable,
+            model_name: str = None,
     ):
         self.setup_using_config()
         self.process_dataset(
             function_to_apply_over_metadata=function_to_apply_over_metadata
         )
 
-        self.app_logger.info(
-            f"Pipeline - Running experiments for {model_name.upper()} and all feature types."
-        )
-        self.configurations_as_dict["model"]["name"] = model_name
+        if model_name is not None:
+            self.configurations_as_dict["model"]["name"] = model_name
+            self.configurations_as_dict["model"]["parameters"] = self.supported_models[model_name]
+
+        self.app_logger.info(f"Pipeline - Running experiments for all feature types for model {model_name}.")
         for feat_name in self.supported_feats:
             self.configurations_as_dict["audio"]["feature_type"] = feat_name
             self.run_an_experiment_from_config()
         self.app_logger.info("Pipeline - Pipeline executed successfully.")
 
     def run_pipeline_for_one_feat_all_models(
-            self, feat_name: str, function_to_apply_over_metadata: callable
+            self, function_to_apply_over_metadata: callable, feat_name: str = None
     ):
         self.setup_using_config()
         self.process_dataset(
             function_to_apply_over_metadata=function_to_apply_over_metadata
         )
 
-        self.app_logger.info(
-            f"Pipeline - Running experiments for all models and {feat_name.upper()} feature."
-        )
-        self.configurations_as_dict["audio"]["feature_type"] = feat_name
+        if feat_name is not None:
+            self.configurations_as_dict["audio"]["feature_type"] = feat_name
+
+        self.app_logger.info(f"Pipeline - Running experiments for all models for feature type {feat_name}.")
         for model_name in self.supported_models.keys():
             self.configurations_as_dict["model"]["name"] = model_name
+            self.configurations_as_dict["model"]["parameters"] = self.supported_models[model_name]
+
             self.run_an_experiment_from_config()
         self.app_logger.info("Pipeline - Pipeline executed successfully.")
