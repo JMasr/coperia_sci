@@ -66,4 +66,4 @@ if __name__ == "__main__":
         root_path=ROOT_PATH,
         config_file_path=config_file,
     )
-    pipeline_app.run_pipeline_for_all_model_and_feats(make_dicoperia_metadata)
+    pipeline_app.run_pipeline_with_an_experiment_from_config(make_dicoperia_metadata)
