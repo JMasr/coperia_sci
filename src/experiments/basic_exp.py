@@ -1,6 +1,7 @@
 import logging
 import os.path
 import pickle
+from pathlib import Path
 from typing import Tuple
 
 import numpy as np
@@ -14,9 +15,9 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
 )
-from sklearn.model_selection import permutation_test_score
 from tqdm import tqdm
 
+from model.voting import ExpertVotingSystem
 from src.dataset.basic_dataset import LocalDataset
 from src.exceptions import ExperimentError
 from src.experiments.mlflow import MlFlowService
@@ -105,48 +106,29 @@ class BasicExperiment:
 
                 # Predict
                 output_score = model.predict(feat_)
+                # Average the scores of all segments from the input file
                 output_score = float(np.mean(output_score))
 
-            # Average the scores of all segments from the input file
             y_score.append(output_score)
         return y_score
 
-    def score_sklearn(
-            self, model_trained, test_feats: list, test_label: list
-    ) -> Tuple[dict, dict]:
+    def score_a_prediction_sklearn(self, y_true, y_pred, score_suffix: str = "") -> dict:
         """
-        Calculate a set of performance metrics using sklearn
-        :param model_trained: a model trained using for inference
-        :param test_feats: a list of test feats
-        :param test_label: a list of test labels
-        :return: set of performance metrics: confusion matrix, f1 score, f-beta score, precision, recall, and auc score
+        Calculate a set of performance metrics of a prediction set using sklearn
+        :param y_true: a list of test labels
+        :param y_pred: a list of predicted labels
+        :param score_suffix: a suffix to add to the score name (optional)
+        :return: set of performance metrics: acc, confusion matrix, f1 score, f-beta score, precision, and recall
         """
-        self.app_logger.info("Experiment - Scoring the model...")
-        try:
-            y_feats, y_true = test_feats, test_label
-            y_score = self.make_prediction(model_trained, y_feats)
-
-            # Calculate the auc_score, FP-rate, and TP-rate
-            sklearn_roc_auc_score = roc_auc_score(y_true, y_score)
-            sklearn_fpr, sklearn_tpr, n_thresholds = roc_curve(y_true, y_score)
-
-            # Make prediction using a threshold that maximizes the difference between TPR and FPR
-            optimal_idx = np.argmax(sklearn_tpr - sklearn_fpr)
-            optimal_threshold = n_thresholds[optimal_idx]
-            y_pred = [1 if scr > optimal_threshold else 0 for scr in y_score]
-        except Exception as e:
-            self.app_logger.error(f"Error making prediction over the test set: {e}")
-            raise ExperimentError(e)
+        self.app_logger.info("Experiment - Scoring a prediction...")
+        score_suffix = f"{score_suffix.upper()}_" if score_suffix else ""
 
         try:
-            self.app_logger.info(
-                "Experiment - Calculating Precision, Recall, F1, and F-beta scores."
-            )
             acc = accuracy_score(y_true, y_pred)
             precision, recall, f_beta, support = precision_recall_fscore_support(
                 y_true, y_pred
             )
-            f1_scr = f1_score(y_true, y_pred)
+            f1 = f1_score(y_true, y_pred)
 
             self.app_logger.info("Experiment - Calculating the confusion matrix.")
             confusion_mx = confusion_matrix(y_true, y_pred)
@@ -158,70 +140,119 @@ class BasicExperiment:
             sensitivity = tp / (tp + fn)
             specificity = tn / (tn + fp)
 
-            self.app_logger.info(
-                "Experiment - Calculating the P-Value using permutation test."
-            )
-            estimator = model_trained.__class__(**model_trained.get_params())
-
-            matrix_feats = np.empty((0, y_feats[0].shape[1]))
-            matrix_labels = np.empty((0, 1))
-            for feat, label in zip(y_feats, y_true):
-                matrix_feats = np.vstack((matrix_feats, feat))
-                label = np.array([label] * feat.shape[0])
-                matrix_labels = np.vstack((matrix_labels, label))
-            matrix_labels = matrix_labels.ravel()
-
-            score, permutation_scores, pvalue = permutation_test_score(
-                estimator,
-                matrix_feats,
-                matrix_labels,
-                random_state=self.seed,
-                n_jobs=-1,
-            )
-
             # Create a dictionary of scores
             dict_scores = {
-                "acc_score": float(acc),
-                "tn": int(tn),
-                "fp": int(fp),
-                "fn": int(fn),
-                "tp": int(tp),
-                "sensitivity": float(sensitivity),
-                "specificity": float(specificity),
-                "optimal_threshold": float(optimal_threshold),
-                "auc_score": float(sklearn_roc_auc_score),
-                "confusion_matrix": confusion_mx.tolist(),
-                "f1_scr": float(f1_scr),
-                "true_permutation_score": float(score),
-                "p_value": float(pvalue),
+                f"{score_suffix}TN": int(tn),
+                f"{score_suffix}FP": int(fp),
+                f"{score_suffix}FN": int(fn),
+                f"{score_suffix}TP": int(tp),
+                f"{score_suffix}F1": float(f1),
+                f"{score_suffix}Acc": float(acc),
+                f"{score_suffix}Sensitivity": float(sensitivity),
+                f"{score_suffix}Specificity": float(specificity),
+                f"{score_suffix}Confusion Matrix": confusion_mx.tolist()
             }
 
             # Scores for classes
             num_classes = len(np.unique(y_true))
             for i in range(num_classes):
-                dict_scores[f"precision_class_{i}"] = precision[i]
-                dict_scores[f"recall_class_{i}"] = recall[i]
-                dict_scores[f"f_beta_class_{i}"] = f_beta[i]
-
-            dict_predictions = {
-                "y_true": y_true,
-                "y_scores": y_score,
-                "y_pred": y_pred,
-            }
+                dict_scores[f"{score_suffix}Precision_Class_{i}"] = precision[i]
+                dict_scores[f"{score_suffix}Recall_Class_{i}"] = recall[i]
+                dict_scores[f"{score_suffix}F_Beta_Class_{i}"] = f_beta[i]
 
             self.app_logger.info(
-                "Experiment - Scoring: Accuracy = {:.2f}, AUC = {:.2f} , F1-Score = {:.2f}".format(
-                    acc, sklearn_roc_auc_score, f1_scr
-                )
+                f"Experiment - {score_suffix}Scoring: Accuracy = {acc:.2f}, F1-Score = {f1:.2f}"
             )
+
             self.app_logger.info(
-                "Experiment - Scoring: Sensitivity = {:.2f}, specificity = {:.2f}".format(
-                    sensitivity, specificity
-                )
+                f"Experiment - {score_suffix}Scoring: Sensitivity = {sensitivity:.2f}, Specificity = {specificity:.2f}"
             )
         except Exception as e:
             self.app_logger.error(f"Error calculating the performance metrics: {e}")
             raise ExperimentError(e)
+
+        return dict_scores
+
+    def score_a_model_using_sklearn(
+            self, model_trained, test_feats: list, test_label: list, score_suffix: str = "Audio-Level"
+    ) -> Tuple[dict, dict]:
+        """
+        Calculate a set of performance metrics of a trained model using sklearn
+        :param model_trained: a model trained using for inference
+        :param test_feats: a list of test feats
+        :param test_label: a list of test labels
+        :param score_suffix: a suffix to add to the score name (optional)
+        :return: set of performance metrics: confusion matrix, f1 score, f-beta score, precision, recall, and auc score
+        """
+        self.app_logger.info("Experiment - Scoring the model...")
+        score_suffix = f"{score_suffix.upper()}_" if score_suffix else ""
+        try:
+            y_feats, y_true = test_feats, test_label
+            y_score = self.make_prediction(model_trained, y_feats)
+
+            # Calculate the auc_score, FP-rate, and TP-rate
+            auc_score = roc_auc_score(y_true, y_score)
+            fpr, tpr, n_thresholds = roc_curve(y_true, y_score)
+
+            # Make prediction using a threshold that maximizes the difference between TPR and FPR
+            optimal_idx = np.argmax(tpr - fpr)
+            optimal_threshold = n_thresholds[optimal_idx]
+            y_pred = [1 if scr > optimal_threshold else 0 for scr in y_score]
+        except Exception as e:
+            self.app_logger.error(f"Error making prediction over the test set: {e}")
+            raise ExperimentError(e)
+
+        try:
+            dict_scores = self.score_a_prediction_sklearn(y_true, y_pred, score_suffix)
+        except Exception as e:
+            self.app_logger.error(f"Error calculating the performance metrics: {e}")
+            raise ExperimentError(e)
+
+        try:
+            self.app_logger.info(
+                "Experiment - Calculating the P-Value using permutation test."
+            )
+            estimator = model_trained.__class__(**model_trained.get_params())
+
+            # matrix_feats = np.empty((0, y_feats[0].shape[1]))
+            # matrix_labels = np.empty((0, 1))
+            # for feat, label in zip(y_feats, y_true):
+            #     matrix_feats = np.vstack((matrix_feats, feat))
+            #     label = np.array([label] * feat.shape[0])
+            #     matrix_labels = np.vstack((matrix_labels, label))
+            # matrix_labels = matrix_labels.ravel()
+            #
+            # score, permutation_scores, pvalue = permutation_test_score(
+            #     estimator,
+            #     matrix_feats,
+            #     matrix_labels,
+            #     random_state=self.seed,
+            #     n_jobs=-1,
+            # )
+        except Exception as e:
+            self.app_logger.error(f"Error calculating the Permutation Metrics: {e}")
+            raise ExperimentError(e)
+
+        dict_scores[f"{score_suffix}AUC"] = auc_score
+        # dict_scores[f"{score_suffix}P-Value"] = pvalue
+        # dict_scores[f"{score_suffix}Permutation-Score"] = score
+        dict_scores[f"{score_suffix}Threshold"] = optimal_threshold
+
+        dict_predictions = {
+            "y_true": y_true,
+            "y_scores": y_score,
+            "y_pred": y_pred,
+        }
+
+        self.app_logger.info(
+            f"Experiment - Scoring: Accuracy = {dict_scores.get('Acc', -1)},"
+            f" AUC = {dict_scores.get('AUC', -1)},"
+            f" F1-Score = {dict_scores.get('F1', -1)}"
+        )
+        self.app_logger.info(
+            f"Experiment - Scoring: Sensitivity = {dict_scores.get('Sensitivity', -1)},"
+            f"Specificity = {dict_scores.get('Specificity', -1)},"
+        )
 
         return dict_scores, dict_predictions
 
@@ -247,35 +278,65 @@ class BasicExperiment:
 
         model_performance_for_each_fold, predictions_for_each_fold = {}, {}
         for fold in folds_train.keys():
+            # Get the training set
             train_data = folds_train[fold]
 
+            # Build and train the model
             model_builder.build_model()
             trained_model = model_builder.train_model(train_data["X"], train_data["y"])
             self.trained_model = trained_model
 
-            # Score the model
+            # Get the test set
             test_data = folds_test[fold]
-            fold_scores_test_set, fold_predictions_test_set = self.score_sklearn(
+            test_label = test_data["y"]
+            test_samples = test_data["X"]
+
+            # Score the model using the audio-level predictions on the test set
+            fold_audio_scores_test_set, fold_predictions_test_set = self.score_a_model_using_sklearn(
                 trained_model,
-                test_data["X"],
-                test_data["y"],
+                test_samples,
+                test_label,
             )
 
-            fold_predictions_test_set["ids"] = [
-                audio_id.split("/")[-1]
+            # Get the audio-level predictions
+            fold_predictions_test_set["audio_id"] = [
+                Path(audio_id).stem
                 for audio_id in test_data[self.dataset.column_with_ids]
             ]
-            df_index_2_labels_scores_predictions = pd.DataFrame(
-                {
-                    "y_true": fold_predictions_test_set["y_true"],
-                    "y_scores": fold_predictions_test_set["y_scores"],
-                    "y_pred": fold_predictions_test_set["y_pred"],
-                },
-                index=fold_predictions_test_set["ids"],
+            fold_predictions_test_set["spk_id"] = [
+                spk_id
+                for spk_id in test_data["spk_id"]
+            ]
+            df_fold_predictions_test_set = pd.DataFrame(fold_predictions_test_set)
+
+            # Get a speaker-level prediction using the audio-level predictions
+            voting_model = ExpertVotingSystem(voting="soft")
+            df_prediction_labels_for_speaker_test_set = voting_model.predict(
+                df=df_fold_predictions_test_set,
+                id_col="spk_id",
+                class_col="y_pred",
+                prob_col="y_scores"
             )
 
-            model_performance_for_each_fold[fold] = fold_scores_test_set
-            predictions_for_each_fold[fold] = df_index_2_labels_scores_predictions
+            # Get the true labels for the speaker-level predictions
+            df_true_labels_for_speaker_test_set = df_fold_predictions_test_set.groupby("spk_id")[
+                "y_true"].first().reset_index()
+            # Convert the true labels to integers
+            df_true_labels_for_speaker_test_set["y_true"] = df_true_labels_for_speaker_test_set["y_true"].astype(int)
+
+            # Score the speaker-level predictions
+            fold_speaker_scores_test_set = self.score_a_prediction_sklearn(
+                df_true_labels_for_speaker_test_set["y_true"],
+                df_prediction_labels_for_speaker_test_set["y_pred"],
+                score_suffix="Speaker-Level"
+            )
+
+            # Union the audio-level and speaker-level scores
+            fold_speaker_scores_test_set.update(fold_audio_scores_test_set)
+
+            # Save the performance metrics and predictions for each fold
+            model_performance_for_each_fold[fold] = fold_speaker_scores_test_set
+            predictions_for_each_fold[fold] = df_prediction_labels_for_speaker_test_set
 
         self.experiment_performance = model_performance_for_each_fold
         self.experiment_predictions = predictions_for_each_fold
