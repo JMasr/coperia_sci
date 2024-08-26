@@ -242,8 +242,11 @@ if __name__ == "__main__":
         root_path=ROOT_PATH,
         config_file_path=config_file,
     )
+
+    # Run the pipeline with all the data and default configuration
     pipeline_app.run_pipeline_with_an_experiment_from_config(make_dicoperia_metadata)
 
+    # Run the pipeline with all the data after and default configuration
     new_pipeline_config = pipeline_app.configurations_as_dict
     new_pipeline_config["run"]["run_name"] = "COPERIA-AFTER"
     new_pipeline_config["dataset"]["path_to_object"] = "/home/visia/Documents/GitHub/coperia_sci/exp/COPERIA-AFTER.pkl"
@@ -253,6 +256,7 @@ if __name__ == "__main__":
         make_dicoperia_metadata_after
     )
 
+    # Run the pipeline with all the data before and default configuration
     new_pipeline_config = pipeline_app.configurations_as_dict
     new_pipeline_config["run"]["run_name"] = "COPERIA-BEFORE"
     new_pipeline_config["dataset"]["name"] = "COPERIA-BEFORE"
@@ -263,6 +267,7 @@ if __name__ == "__main__":
         make_dicoperia_metadata_before
     )
 
+    # Run the pipeline with all the data cough and default configuration
     new_pipeline_config = pipeline_app.configurations_as_dict
     new_pipeline_config["run"]["run_name"] = "COPERIA-COUGH"
     new_pipeline_config["dataset"]["name"] = "COPERIA-COUGH"
@@ -273,6 +278,7 @@ if __name__ == "__main__":
         make_dicoperia_metadata_cougth
     )
 
+    # Run the pipeline with all the data a and default configuration
     new_pipeline_config = pipeline_app.configurations_as_dict
     new_pipeline_config["run"]["run_name"] = "COPERIA-A"
     new_pipeline_config["dataset"]["name"] = "COPERIA-A"
