@@ -159,10 +159,10 @@ class Pipeline(BaseModel):
     ) -> BasicExperiment:
         try:
             config_run_experiment = configurations_as_dict.get("run")
-            seed = config_run_experiment.get("seed")
-            k_fold = config_run_experiment.get("k_folds")
-            test_size = config_run_experiment.get("test_size")
-            run_name = config_run_experiment.get("run_name")
+            seed = config_run_experiment.get("seed", 42)
+            k_fold = config_run_experiment.get("k_folds", 5)
+            test_size = config_run_experiment.get("test_size", 0.2)
+            run_name = config_run_experiment.get("run_name", "experiment")
             path_to_save_experiment = config_run_experiment.get(
                 "path_to_save_experiment"
             )
