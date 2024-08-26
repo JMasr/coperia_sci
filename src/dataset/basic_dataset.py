@@ -522,9 +522,12 @@ class AudioDataset(LocalDataset):
             test_ids = set(test_metadata[column_with_ids])
             train_ids = set(train_metadata[column_with_ids])
 
-            train_feats, train_labels, train_audio_id = [], [], []
-            test_feats, test_labels, test_audio_id = [], [], []
+            train_feats, train_labels, train_audio_id, train_spk_id = [], [], [], []
+            test_feats, test_labels, test_audio_id, test_spk_id = [], [], [], []
             for id_, feats_of_id in acoustic_feat_data.items():
+
+                spk_id = dataframe[dataframe[column_with_ids] == id_]["patient_id"].item()
+
                 feat_of_id_sample = np.array(feats_of_id[acoustics_feat_name])
 
                 label_of_id_sample = dataframe[dataframe[column_with_ids] == id_][
@@ -540,39 +543,45 @@ class AudioDataset(LocalDataset):
                 if id_ in set(train_ids):
                     train_feats.append(feat_of_id_sample)
                     train_labels.append(label_of_id_sample)
-                    train_audio_id.append(np.array([id_] * feat_of_id_sample.shape[0]))
+                    for _ in range(feat_of_id_sample.shape[0]):
+                        train_spk_id.append(spk_id)
+                        train_audio_id.append(id_)
 
                 elif id_ in set(test_ids):
                     test_feats.append(feat_of_id_sample)
 
                     if subset_at_sample_lv:
+                        test_spk_id.append(spk_id * feat_of_id_sample.shape[0])
                         test_labels.append(label_of_id_sample)
                         test_audio_id.append(
                             np.array([id_] * feat_of_id_sample.shape[0])
                         )
                     else:
+                        test_spk_id.append(spk_id)
                         test_labels.append(np.array([np.mean(label_of_id_sample)]))
                         test_audio_id.append(id_)
 
             train_feats = np.vstack(train_feats).astype(np.float32)
             train_labels = np.vstack(train_labels).astype(int)
 
+            train_labels = train_labels.ravel()
+
             if subset_at_sample_lv:
                 test_feats = np.vstack(test_feats, dtype=np.float32)
                 test_labels = np.vstack(test_labels, dtype=int)
-
-            train_labels = train_labels.ravel()
 
             result = {
                 "train": {
                     "X": train_feats,
                     "y": train_labels,
                     column_with_ids: train_audio_id,
+                    "spk_id": train_spk_id,
                 },
                 "test": {
                     "X": test_feats,
                     "y": test_labels,
                     column_with_ids: test_audio_id,
+                    "spk_id": test_spk_id,
                 },
             }
 
