@@ -15,6 +15,7 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
 )
+from sklearn.model_selection import permutation_test_score
 from tqdm import tqdm
 
 from src.dataset.basic_dataset import LocalDataset
@@ -214,28 +215,28 @@ class BasicExperiment:
             )
             estimator = model_trained.__class__(**model_trained.get_params())
 
-            # matrix_feats = np.empty((0, y_feats[0].shape[1]))
-            # matrix_labels = np.empty((0, 1))
-            # for feat, label in zip(y_feats, y_true):
-            #     matrix_feats = np.vstack((matrix_feats, feat))
-            #     label = np.array([label] * feat.shape[0])
-            #     matrix_labels = np.vstack((matrix_labels, label))
-            # matrix_labels = matrix_labels.ravel()
-            #
-            # score, permutation_scores, pvalue = permutation_test_score(
-            #     estimator,
-            #     matrix_feats,
-            #     matrix_labels,
-            #     random_state=self.seed,
-            #     n_jobs=-1,
-            # )
+            matrix_feats = np.empty((0, y_feats[0].shape[1]))
+            matrix_labels = np.empty((0, 1))
+            for feat, label in zip(y_feats, y_true):
+                matrix_feats = np.vstack((matrix_feats, feat))
+                label = np.array([label] * feat.shape[0])
+                matrix_labels = np.vstack((matrix_labels, label))
+            matrix_labels = matrix_labels.ravel()
+
+            score, permutation_scores, pvalue = permutation_test_score(
+                estimator,
+                matrix_feats,
+                matrix_labels,
+                random_state=self.seed,
+                n_jobs=-1,
+            )
         except Exception as e:
             self.app_logger.error(f"Error calculating the Permutation Metrics: {e}")
             raise ExperimentError(e)
 
         dict_scores[f"{score_suffix}AUC"] = auc_score
-        # dict_scores[f"{score_suffix}P-Value"] = pvalue
-        # dict_scores[f"{score_suffix}Permutation-Score"] = score
+        dict_scores[f"{score_suffix}P-Value"] = pvalue
+        dict_scores[f"{score_suffix}Permutation-Score"] = score
         dict_scores[f"{score_suffix}Threshold"] = optimal_threshold
 
         dict_predictions = {
@@ -248,6 +249,7 @@ class BasicExperiment:
             f"Experiment - Scoring: Accuracy = {dict_scores.get('Acc', -1)},"
             f" AUC = {dict_scores.get('AUC', -1)},"
             f" F1-Score = {dict_scores.get('F1', -1)}"
+            f" P-Value = {dict_scores.get('P-Value', -1)}"
         )
         self.app_logger.info(
             f"Experiment - Scoring: Sensitivity = {dict_scores.get('Sensitivity', -1)},"
