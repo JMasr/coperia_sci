@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 import mlflow
 import requests
@@ -50,7 +51,7 @@ class MlFlowService:
         for char in [" ", "/", "\\", "[", "]", "{", "}", "(", ")", ",", ".", "'"]:
             filter_as_str = filter_as_str.replace(char, "")
 
-        mlflow.set_experiment(f"{filter_as_str}_seed:{seed}")
+        mlflow.set_experiment(f"{filter_as_str}_seed:{seed}_date:{datetime.now().strftime('%Y-%m-%d')}")
 
         model_name = model_config["model_name"]
         feature_name = feature_config["feature_type"]
