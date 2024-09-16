@@ -17,11 +17,11 @@ from sklearn.metrics import (
 )
 from tqdm import tqdm
 
-from model.voting import ExpertVotingSystem
 from src.dataset.basic_dataset import LocalDataset
 from src.exceptions import ExperimentError
 from src.experiments.mlflow import MlFlowService
 from src.model.model_object import ModelBuilder
+from src.model.voting import ExpertVotingSystem
 
 
 class BasicExperiment:
