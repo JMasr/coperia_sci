@@ -230,13 +230,14 @@ class BasicExperiment:
                 random_state=self.seed,
                 n_jobs=-1,
             )
+            dict_scores[f"{score_suffix}P-Value"] = pvalue
+            dict_scores[f"{score_suffix}Permutation-Score"] = score
+
         except Exception as e:
             self.app_logger.error(f"Error calculating the Permutation Metrics: {e}")
             raise ExperimentError(e)
 
         dict_scores[f"{score_suffix}AUC"] = auc_score
-        dict_scores[f"{score_suffix}P-Value"] = pvalue
-        dict_scores[f"{score_suffix}Permutation-Score"] = score
         dict_scores[f"{score_suffix}Threshold"] = optimal_threshold
 
         dict_predictions = {

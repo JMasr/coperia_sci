@@ -151,7 +151,7 @@ def make_dicoperia_metadata_cougth(
     if filters_ is None:
         filters_ = {
             "patient_type": ["covid-control", "covid-persistente"],
-            "audio_types": ["/cough/"],
+            "audio_type": ["/cough/"],
         }
 
     if remove_samples is None:
@@ -195,7 +195,7 @@ def make_dicoperia_metadata_a(
     if filters_ is None:
         filters_ = {
             "patient_type": ["covid-control", "covid-persistente"],
-            "audio_types": ["/a/"],
+            "audio_type": ["/a/"],
         }
 
     if remove_samples is None:

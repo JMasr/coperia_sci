@@ -78,6 +78,8 @@ class LocalDataset(BaseModel):
         try:
             if os.path.exists(path_to_save_the_dataset):
                 os.remove(path_to_save_the_dataset)
+            else:
+                os.makedirs(os.path.dirname(path_to_save_the_dataset), exist_ok=True)
 
             with open(path_to_save_the_dataset, "wb") as file:
                 pickle.dump(self, file)

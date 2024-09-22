@@ -79,7 +79,8 @@ class Pipeline(BaseModel):
 
         try:
             self.app_logger.info("Pipeline - Initialization of a COPERIA's experiment")
-            self.configurations_as_dict = self._load_config_from_a_json()
+            if not self.configurations_as_dict:
+                self.configurations_as_dict = self._load_config_from_a_json()
         except Exception as e:
             self.app_logger.error(
                 f"Pipline - Error loading the config file: {self.config_file_path}"
@@ -94,7 +95,10 @@ class Pipeline(BaseModel):
             feat_name = config_audio.get("feature_type")
 
             config_run_experiment = self.configurations_as_dict.get("run")
+            run_name = config_run_experiment.get("run_name")
             debug = config_run_experiment.get("debug")
+            test_size = config_run_experiment.get("test_size")
+            path_to_save_experiment = config_run_experiment.get("path_to_save_experiment")
 
             config_dataset_experiment = self.configurations_as_dict.get("dataset")
             dataset_name = config_dataset_experiment.get("name")
@@ -106,15 +110,16 @@ class Pipeline(BaseModel):
                 "column_with_label_of_class"
             )
             metadata_path = config_dataset_experiment.get("path_to_csv")
-            dataset_object_path = config_dataset_experiment.get("path_to_object", False)
-            dataset_raw_data_path = config_dataset_experiment.get("raw_data_path")
             filters = config_dataset_experiment.get("filters")
             raw_data_path = config_dataset_experiment.get("raw_data_path")
 
             self.app_logger.info("Pipeline - Processing the dataset")
+            path_to_save_dataset = os.path.join(
+                path_to_save_experiment, "datasets", f"{run_name}_{debug}_{feat_name}_{'-'.join(filters.keys())}"
+            )
             dataset = AudioDataset(
                 name=dataset_name,
-                storage_path=os.path.dirname(dataset_object_path),
+                storage_path=path_to_save_dataset,
                 app_logger=self.app_logger,
                 column_with_ids=column_with_ids,
                 column_with_target_class=column_with_target_class,
@@ -123,29 +128,22 @@ class Pipeline(BaseModel):
                 config_audio=config_audio,
                 dataset_raw_data_path=raw_data_path,
             )
-            if os.path.exists(dataset_object_path):
-                self.app_logger.info(
-                    "Pipeline -Loading the dataset from a serialized object."
-                )
-                dataset = dataset.load_dataset_from_a_serialized_object(
-                    dataset_object_path
-                )
-            else:
-                self.app_logger.info("Pipeline - Processing the dataset from scratch.")
-                dataset.load_metadata_from_csv(metadata_path, decimal=".")
-                if debug:
-                    dataset.sample_metadata(fraction=0.1)
 
-                dataset.transform_metadata([function_to_apply_over_metadata])
-                dataset.transform_column_id_2_data_path(
-                    column_name=column_with_ids,
-                    path=dataset_raw_data_path,
-                    extension=".wav",
-                )
+            self.app_logger.info("Pipeline - Processing the dataset from scratch.")
+            dataset.load_metadata_from_csv(metadata_path, decimal=".")
+            if debug:
+                dataset.sample_metadata(fraction=test_size)
 
-                dataset.load_raw_data()
-                dataset.extract_acoustic_features(feat_name)
-                dataset.save_dataset_as_a_serialized_object()
+            dataset.transform_metadata([function_to_apply_over_metadata])
+            dataset.transform_column_id_2_data_path(
+                column_name=column_with_ids,
+                path=raw_data_path,
+                extension=".wav",
+            )
+
+            dataset.load_raw_data()
+            dataset.extract_acoustic_features(feat_name)
+            dataset.save_dataset_as_a_serialized_object()
         except Exception as e:
             self.app_logger.error("Pipeline - Error processing the dataset.")
             raise RuntimeError(e)
