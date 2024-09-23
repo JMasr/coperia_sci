@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
     arguments = argparse.ArgumentParser(description="Run the COPERIA pipeline")
     arguments.add_argument(
-        "--config_file",
+        "--config-file",
         type=str,
         default=os.path.join(ROOT_PATH, "config", "exp_config.json"),
         help="Path to the configuration file",
@@ -272,7 +272,7 @@ if __name__ == "__main__":
     new_pipeline_config["run"]["run_name"] = "COPERIA-COUGH"
     new_pipeline_config["dataset"]["name"] = "COPERIA-COUGH"
     new_pipeline_config["dataset"]["path_to_object"] = "/home/visia/Documents/GitHub/coperia_sci/exp/COPERIA-COUGH.pkl"
-    new_pipeline_config["dataset"]["filters"] = {"audio_type": ["ALL"], "audio_moment": ["/cough/"]}
+    new_pipeline_config["dataset"]["filters"] = {"audio_type": ["/cough/"], "audio_moment": ["ALL"]}
     pipeline_app.configurations_as_dict = new_pipeline_config
     pipeline_app.run_pipeline_with_an_experiment_from_config(
         make_dicoperia_metadata_cougth
@@ -283,7 +283,7 @@ if __name__ == "__main__":
     new_pipeline_config["run"]["run_name"] = "COPERIA-A"
     new_pipeline_config["dataset"]["name"] = "COPERIA-A"
     new_pipeline_config["dataset"]["path_to_object"] = "/home/visia/Documents/GitHub/coperia_sci/exp/COPERIA-A.pkl"
-    new_pipeline_config["dataset"]["filters"] = {"audio_type": ["ALL"], "audio_moment": ["/a/"]}
+    new_pipeline_config["dataset"]["filters"] = {"audio_type": ["/a/"], "audio_moment": ["ALL"]}
     pipeline_app.configurations_as_dict = new_pipeline_config
     pipeline_app.run_pipeline_with_an_experiment_from_config(
         make_dicoperia_metadata_a

@@ -2,6 +2,7 @@ import logging
 import multiprocessing
 import os
 import pickle
+from abc import abstractmethod, ABC
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from sys import platform
@@ -68,6 +69,10 @@ class LocalDataset(BaseModel):
     filters: dict = {}
     raw_metadata: pd.DataFrame = pd.DataFrame()
     post_processed_metadata: pd.DataFrame = pd.DataFrame()
+
+    num_folders: int = None
+    size_test_folder: int = None
+    size_train_folder: int = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -341,6 +346,8 @@ class LocalDataset(BaseModel):
         target_class_for_fold = self.column_with_target_class
         target_label_for_fold = self.column_with_label_of_class
 
+        # Record the number of folders
+        self.num_folders = k_folds
         if k_folds <= 1:
             folds_data = self._make_1_fold_subsets(
                 target_class_for_fold, target_label_for_fold, test_size, seed
@@ -353,11 +360,19 @@ class LocalDataset(BaseModel):
                 f"The value for the number of folds is invalid: {k_folds}"
             )
 
+        # Record the size of the folders
+        self.size_test_folder = folds_data[0][folds_data[0]["subset"] == "test"].shape[0]
+        self.size_train_folder = folds_data[0][folds_data[0]["subset"] == "train"].shape[0]
+
         return folds_data
+
+    @abstractmethod
+    def get_dataset_info(self):
+        pass
 
 
 # Create a class child class of LocalDataset with the name "AudioDataset"
-class AudioDataset(LocalDataset):
+class AudioDataset(LocalDataset, ABC):
     config_audio: dict
     dataset_raw_data_path: str
 
@@ -684,3 +699,22 @@ class AudioDataset(LocalDataset):
             raise MetadataError(e)
 
         return folds_train_ids_to_feats_and_labels, folds_test_ids_to_feats_and_labels
+
+    def get_dataset_info(self):
+        return {
+            "name": self.name,
+            "storage_path": self.storage_path,
+            "column_with_ids": self.column_with_ids,
+            "column_with_target_class": self.column_with_target_class,
+            "column_with_label_of_class": self.column_with_label_of_class,
+            "filters": self.filters,
+            "raw_metadata_size": len(self.raw_metadata),
+            "post_processed_metadata_size": len(self.post_processed_metadata),
+            "num_folders": self.num_folders,
+            "size_test_folder": self.size_test_folder,
+            "size_train_folder": self.size_train_folder,
+            "feature_config": self.config_audio,
+            "dataset_raw_data_path": self.dataset_raw_data_path,
+            "raw_audio_data_size": len(self.raw_audio_data),
+            "acoustic_feat_data": self.acoustic_feat_data,
+        }

@@ -33,11 +33,10 @@ class MlFlowService:
 
     def record_a_experiment(
             self,
-            filters: dict,
+            dataset_config: dict,
             all_scores: dict,
             model_config: dict,
-            feature_config: dict,
-            num_fold_to_record: int,
+            fold_recorded: int,
             seed: int,
     ):
 
@@ -47,23 +46,29 @@ class MlFlowService:
         if mlflow.active_run():
             mlflow.end_run()
 
+        filters = dataset_config.get("filters", {})
         filter_as_str = "_".join([f"{k}:{v}" for k, v in filters.items()])
         for char in [" ", "/", "\\", "[", "]", "{", "}", "(", ")", ",", ".", "'"]:
             filter_as_str = filter_as_str.replace(char, "")
+        dataset_config.pop("filters", None)
 
-        mlflow.set_experiment(f"{filter_as_str}_seed:{seed}_date:{datetime.now().strftime('%Y-%m-%d')}")
+        feature_config = dataset_config.get("feature_config", {})
+        feature_name = feature_config.get("feature_type", "default")
+        dataset_config.pop("feature_config", None)
 
         model_name = model_config["model_name"]
-        feature_name = feature_config["feature_type"]
 
+        mlflow_experiment_name = f"{filter_as_str}_seed:{seed}_date:{datetime.now().strftime('%Y-%m-%d')}"
+        mlflow.set_experiment(experiment_name=mlflow_experiment_name)
         with mlflow.start_run(
-                run_name=f"{model_name}_{feature_name}_{num_fold_to_record}_{seed}"
+                run_name=f"{model_name}_{feature_name}_{fold_recorded}_{seed}"
         ):
             # Log the parameters
+            mlflow.log_params(model_config)
+            mlflow.log_params(dataset_config)
             mlflow.log_params(filters)
             mlflow.log_params(feature_config)
-            mlflow.log_params(model_config)
-            mlflow.log_param("fold", num_fold_to_record + 1)
+            mlflow.log_param("fold", fold_recorded + 1)
             mlflow.log_param("random_state", seed)
 
             # Log the metrics
