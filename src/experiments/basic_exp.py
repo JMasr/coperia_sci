@@ -15,7 +15,6 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
 )
-from sklearn.model_selection import permutation_test_score
 from tqdm import tqdm
 
 from src.dataset.basic_dataset import LocalDataset
@@ -51,6 +50,7 @@ class BasicExperiment:
         self.target_class = target_class
         self.target_label = target_label
         self.feature_name = feature_name
+        self.parameters_dataset = None
 
         self.name_model = name_model
         self.parameters_model = parameters_model
@@ -360,13 +360,14 @@ class BasicExperiment:
             model_config["model_name"] = self.name_model
             model_performance = self.experiment_performance[fold]
 
+            dataset_info = self.dataset.get_dataset_info()
+
             try:
                 self.mlflow_service.record_a_experiment(
-                    filters=self.dataset.filters,
+                    dataset_config=dataset_info,
                     all_scores=model_performance,
                     model_config=model_config,
-                    feature_config=self.dataset.config_audio,
-                    num_fold_to_record=fold,
+                    fold_recorded=fold,
                     seed=self.seed,
                 )
             except Exception as e:
