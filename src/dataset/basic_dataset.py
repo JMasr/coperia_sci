@@ -77,8 +77,12 @@ class LocalDataset(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
+    @staticmethod
+    def check_if_dataset_exists(path_to_dataset: str) -> bool:
+        return os.path.exists(path_to_dataset)
+
     def save_dataset_as_a_serialized_object(self):
-        path_to_save_the_dataset = os.path.join(self.storage_path, f"{self.name}.pkl")
+        path_to_save_the_dataset = f"{self.storage_path}.pkl"
 
         try:
             if os.path.exists(path_to_save_the_dataset):
@@ -102,7 +106,8 @@ class LocalDataset(BaseModel):
         # Deserialize the object from a file
         try:
             if path_to_object is None:
-                path_to_object = os.path.join(self.storage_path, f"{self.name}.pkl")
+                path_to_object = f"{self.storage_path}.pkl"
+
             with open(path_to_object, "rb") as file:
                 dataset = pickle.load(file)
         except Exception as e:
