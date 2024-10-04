@@ -15,7 +15,6 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
 )
-from sklearn.model_selection import permutation_test_score
 from tqdm import tqdm
 
 from src.dataset.basic_dataset import LocalDataset
@@ -33,7 +32,6 @@ class BasicExperiment:
             dataset: LocalDataset,
             feature_name: str,
             target_class: str,
-            target_label: str,
             k_fold: int,
             test_size: float,
             name_model: str = None,
@@ -49,7 +47,6 @@ class BasicExperiment:
 
         self.dataset = dataset
         self.target_class = target_class
-        self.target_label = target_label
         self.feature_name = feature_name
         self.parameters_dataset = None
 
@@ -123,7 +120,7 @@ class BasicExperiment:
         :return: set of performance metrics: acc, confusion matrix, f1 score, f-beta score, precision, and recall
         """
         self.app_logger.info("Experiment - Scoring a prediction...")
-        score_suffix = f"{score_suffix.upper()}_" if score_suffix else ""
+        score_suffix = f"{score_suffix.upper()}" if score_suffix else ""
 
         try:
             acc = accuracy_score(y_true, y_pred)
@@ -144,30 +141,30 @@ class BasicExperiment:
 
             # Create a dictionary of scores
             dict_scores = {
-                f"{score_suffix}TN": int(tn),
-                f"{score_suffix}FP": int(fp),
-                f"{score_suffix}FN": int(fn),
-                f"{score_suffix}TP": int(tp),
-                f"{score_suffix}F1": float(f1),
-                f"{score_suffix}Acc": float(acc),
-                f"{score_suffix}Sensitivity": float(sensitivity),
-                f"{score_suffix}Specificity": float(specificity),
-                f"{score_suffix}Confusion Matrix": confusion_mx.tolist()
+                f"{score_suffix}-TN": int(tn),
+                f"{score_suffix}-FP": int(fp),
+                f"{score_suffix}-FN": int(fn),
+                f"{score_suffix}-TP": int(tp),
+                f"{score_suffix}-F1": float(f1),
+                f"{score_suffix}-Acc": float(acc),
+                f"{score_suffix}-Sensitivity": float(sensitivity),
+                f"{score_suffix}-Specificity": float(specificity),
+                f"{score_suffix}-Confusion Matrix": confusion_mx.tolist()
             }
 
             # Scores for classes
             num_classes = len(np.unique(y_true))
             for i in range(num_classes):
-                dict_scores[f"{score_suffix}Precision_Class_{i}"] = precision[i]
-                dict_scores[f"{score_suffix}Recall_Class_{i}"] = recall[i]
-                dict_scores[f"{score_suffix}F_Beta_Class_{i}"] = f_beta[i]
+                dict_scores[f"{score_suffix}-Precision_Class_{i}"] = precision[i]
+                dict_scores[f"{score_suffix}-Recall_Class_{i}"] = recall[i]
+                dict_scores[f"{score_suffix}-F_Beta_Class_{i}"] = f_beta[i]
 
             self.app_logger.info(
-                f"Experiment - {score_suffix}Scoring: Accuracy = {acc:.2f}, F1-Score = {f1:.2f}"
+                f"Experiment - {score_suffix} Scoring: Accuracy = {acc}, F1-Score = {f1}"
             )
 
             self.app_logger.info(
-                f"Experiment - {score_suffix}Scoring: Sensitivity = {sensitivity:.2f}, Specificity = {specificity:.2f}"
+                f"Experiment - {score_suffix} Scoring: Sensitivity = {sensitivity}, Specificity = {specificity}"
             )
         except Exception as e:
             self.app_logger.error(f"Error calculating the performance metrics: {e}")
@@ -187,7 +184,7 @@ class BasicExperiment:
         :return: set of performance metrics: confusion matrix, f1 score, f-beta score, precision, recall, and auc score
         """
         self.app_logger.info("Experiment - Scoring the model...")
-        score_suffix = f"{score_suffix.upper()}_" if score_suffix else ""
+        score_suffix = f"{score_suffix.upper()}" if score_suffix else ""
         try:
             y_feats, y_true = test_feats, test_label
             y_score = self.make_prediction(model_trained, y_feats)
@@ -210,36 +207,36 @@ class BasicExperiment:
             self.app_logger.error(f"Error calculating the performance metrics: {e}")
             raise ExperimentError(e)
 
-        try:
-            self.app_logger.info(
-                "Experiment - Calculating the P-Value using permutation test."
-            )
-            estimator = model_trained.__class__(**model_trained.get_params())
+        # try:
+        #     self.app_logger.info(
+        #         "Experiment - Calculating the P-Value using permutation test."
+        #     )
+        #     estimator = model_trained.__class__(**model_trained.get_params())
+        #
+        #     matrix_feats = np.empty((0, y_feats[0].shape[1]))
+        #     matrix_labels = np.empty((0, 1))
+        #     for feat, label in zip(y_feats, y_true):
+        #         matrix_feats = np.vstack((matrix_feats, feat))
+        #         label = np.array([label] * feat.shape[0])
+        #         matrix_labels = np.vstack((matrix_labels, label))
+        #     matrix_labels = matrix_labels.ravel()
+        #
+        #     score, permutation_scores, pvalue = permutation_test_score(
+        #         estimator,
+        #         matrix_feats,
+        #         matrix_labels,
+        #         random_state=self.seed,
+        #         n_jobs=-1,
+        #     )
+        #     dict_scores[f"{score_suffix}P-Value"] = pvalue
+        #     dict_scores[f"{score_suffix}Permutation-Score"] = score
+        #
+        # except Exception as e:
+        #     self.app_logger.error(f"Error calculating the Permutation Metrics: {e}")
+        #     raise ExperimentError(e)
 
-            matrix_feats = np.empty((0, y_feats[0].shape[1]))
-            matrix_labels = np.empty((0, 1))
-            for feat, label in zip(y_feats, y_true):
-                matrix_feats = np.vstack((matrix_feats, feat))
-                label = np.array([label] * feat.shape[0])
-                matrix_labels = np.vstack((matrix_labels, label))
-            matrix_labels = matrix_labels.ravel()
-
-            score, permutation_scores, pvalue = permutation_test_score(
-                estimator,
-                matrix_feats,
-                matrix_labels,
-                random_state=self.seed,
-                n_jobs=-1,
-            )
-            dict_scores[f"{score_suffix}P-Value"] = pvalue
-            dict_scores[f"{score_suffix}Permutation-Score"] = score
-
-        except Exception as e:
-            self.app_logger.error(f"Error calculating the Permutation Metrics: {e}")
-            raise ExperimentError(e)
-
-        dict_scores[f"{score_suffix}AUC"] = auc_score
-        dict_scores[f"{score_suffix}Threshold"] = optimal_threshold
+        dict_scores[f"{score_suffix}-AUC"] = auc_score
+        dict_scores[f"{score_suffix}-Threshold"] = optimal_threshold
 
         dict_predictions = {
             "y_true": y_true,
@@ -248,13 +245,7 @@ class BasicExperiment:
         }
 
         self.app_logger.info(
-            f"Experiment - Scoring: Accuracy = {dict_scores.get('Acc', -1)},"
-            f" AUC = {dict_scores.get('AUC', -1)},"
-            f" F1-Score = {dict_scores.get('F1', -1)}"
-            f" P-Value = {dict_scores.get('P-Value', -1)}"
-        )
-        self.app_logger.info(
-            f"Experiment - Scoring: Sensitivity = {dict_scores.get('Sensitivity', -1)},"
+            f"Experiment - Scoring: Sensitivity = {dict_scores.get(f'{score_suffix}-Sensitivity', -1)},"
             f"Specificity = {dict_scores.get('Specificity', -1)},"
         )
 
