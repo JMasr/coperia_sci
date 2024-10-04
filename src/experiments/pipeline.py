@@ -90,46 +90,59 @@ class Pipeline(BaseModel):
         self.app_logger.info("Pipeline - Configurations loaded successfully.")
 
     def process_dataset(self, function_to_apply_over_metadata: callable):
-        try:
-            config_audio = self.configurations_as_dict.get("audio")
-            feat_name = config_audio.get("feature_type")
 
-            config_run_experiment = self.configurations_as_dict.get("run")
-            run_name = config_run_experiment.get("run_name")
-            debug = config_run_experiment.get("debug")
-            test_size = config_run_experiment.get("test_size")
-            path_to_save_experiment = config_run_experiment.get("path_to_save_experiment")
+        config_audio = self.configurations_as_dict.get("audio")
+        feat_name = config_audio.get("feature_type")
 
-            config_dataset_experiment = self.configurations_as_dict.get("dataset")
-            dataset_name = config_dataset_experiment.get("name")
-            column_with_ids = config_dataset_experiment.get("column_with_ids")
-            column_with_target_class = config_dataset_experiment.get(
-                "column_with_target_class"
-            )
-            column_with_label_of_class = config_dataset_experiment.get(
-                "column_with_label_of_class"
-            )
-            metadata_path = config_dataset_experiment.get("path_to_csv")
-            filters = config_dataset_experiment.get("filters")
-            raw_data_path = config_dataset_experiment.get("raw_data_path")
+        config_run_experiment = self.configurations_as_dict.get("run")
+        debug = config_run_experiment.get("debug")
+        test_size = config_run_experiment.get("test_size")
+        path_to_save_experiment = config_run_experiment.get(
+            "path_to_save_experiment"
+        )
 
-            self.app_logger.info("Pipeline - Processing the dataset")
-            path_to_save_dataset = os.path.join(
-                path_to_save_experiment, "datasets", f"{run_name}_{debug}_{feat_name}_{'-'.join(filters.keys())}"
-            )
-            dataset = AudioDataset(
-                name=dataset_name,
-                storage_path=path_to_save_dataset,
-                app_logger=self.app_logger,
-                column_with_ids=column_with_ids,
-                column_with_target_class=column_with_target_class,
-                column_with_label_of_class=column_with_label_of_class,
-                filters=filters,
-                config_audio=config_audio,
-                dataset_raw_data_path=raw_data_path,
-            )
+        config_dataset_experiment = self.configurations_as_dict.get("dataset")
+        dataset_name = config_dataset_experiment.get("name")
+        column_with_ids = config_dataset_experiment.get("column_with_ids")
+        column_with_target_class = config_dataset_experiment.get(
+            "column_with_target_class"
+        )
+        column_with_label_of_class = config_dataset_experiment.get(
+            "column_with_label_of_class"
+        )
+        metadata_path = config_dataset_experiment.get("path_to_csv")
+        filters = config_dataset_experiment.get("filters")
+        filters_values = (
+            "-".join([str(v) for v in filters.values()])
+            .replace("['", "")
+            .replace("']", "")
+            .replace("/", "")
+        )
+        raw_data_path = config_dataset_experiment.get("raw_data_path")
 
-            self.app_logger.info("Pipeline - Processing the dataset from scratch.")
+        self.app_logger.info("Pipeline - Processing the dataset")
+        path_to_save_dataset = os.path.join(
+            path_to_save_experiment,
+            "datasets",
+            f"{dataset_name}_{debug}_{feat_name}_{filters_values}",
+        )
+
+        dataset = AudioDataset(
+            name=dataset_name,
+            storage_path=path_to_save_dataset,
+            app_logger=self.app_logger,
+            column_with_ids=column_with_ids,
+            column_with_target_class=column_with_target_class,
+            column_with_label_of_class=column_with_label_of_class,
+            filters=filters,
+            config_audio=config_audio,
+            dataset_raw_data_path=raw_data_path,
+        )
+
+        path_to_db_as_serialized_object = f"{path_to_save_dataset}.pkl"
+        if dataset.check_if_dataset_exists(path_to_db_as_serialized_object):
+            dataset = dataset.load_dataset_from_a_serialized_object(path_to_db_as_serialized_object)
+        else:
             dataset.load_metadata_from_csv(metadata_path, decimal=".")
             if debug:
                 dataset.sample_metadata(fraction=test_size)
@@ -144,9 +157,6 @@ class Pipeline(BaseModel):
             dataset.load_raw_data()
             dataset.extract_acoustic_features(feat_name)
             dataset.save_dataset_as_a_serialized_object()
-        except Exception as e:
-            self.app_logger.error("Pipeline - Error processing the dataset.")
-            raise RuntimeError(e)
 
         self.dataset = dataset
         self.app_logger.info("Pipeline - Dataset processed successfully.")
@@ -167,7 +177,6 @@ class Pipeline(BaseModel):
 
             config_dataset_experiment = configurations_as_dict.get("dataset")
             target_class = config_dataset_experiment.get("column_with_label_of_class")
-            target_label = config_dataset_experiment.get("target_label")
 
             config_audio = configurations_as_dict.get("audio")
             feat_name = config_audio.get("feature_type")
@@ -188,7 +197,6 @@ class Pipeline(BaseModel):
                 test_size=test_size,
                 feature_name=feat_name,
                 target_class=target_class,
-                target_label=target_label,
                 name_model=model_name,
                 parameters_model=model_parameters,
                 path_to_save_experiment=path_to_save_experiment,
@@ -265,7 +273,9 @@ class Pipeline(BaseModel):
         )
         for model_name in self.supported_models.keys():
             self.configurations_as_dict["model"]["name"] = model_name
-            self.configurations_as_dict["model"]["parameters"] = self.supported_models[model_name]
+            self.configurations_as_dict["model"]["parameters"] = self.supported_models[
+                model_name
+            ]
 
             for feat_name in self.supported_feats:
                 self.configurations_as_dict["audio"]["feature_type"] = feat_name
@@ -273,7 +283,8 @@ class Pipeline(BaseModel):
         self.app_logger.info("Pipeline - Pipeline executed successfully.")
 
     def run_pipeline_for_one_model_and_all_feats(
-            self, function_to_apply_over_metadata: callable,
+            self,
+            function_to_apply_over_metadata: callable,
             model_name: str = None,
     ):
         self.setup_using_config()
@@ -283,9 +294,13 @@ class Pipeline(BaseModel):
 
         if model_name is not None:
             self.configurations_as_dict["model"]["name"] = model_name
-            self.configurations_as_dict["model"]["parameters"] = self.supported_models[model_name]
+            self.configurations_as_dict["model"]["parameters"] = self.supported_models[
+                model_name
+            ]
 
-        self.app_logger.info(f"Pipeline - Running experiments for all feature types for model {model_name}.")
+        self.app_logger.info(
+            f"Pipeline - Running experiments for all feature types for model {model_name}."
+        )
         for feat_name in self.supported_feats:
             self.configurations_as_dict["audio"]["feature_type"] = feat_name
             self.run_an_experiment_from_config()
@@ -302,10 +317,14 @@ class Pipeline(BaseModel):
         if feat_name is not None:
             self.configurations_as_dict["audio"]["feature_type"] = feat_name
 
-        self.app_logger.info(f"Pipeline - Running experiments for all models for feature type {feat_name}.")
+        self.app_logger.info(
+            f"Pipeline - Running experiments for all models for feature type {feat_name}."
+        )
         for model_name in self.supported_models.keys():
             self.configurations_as_dict["model"]["name"] = model_name
-            self.configurations_as_dict["model"]["parameters"] = self.supported_models[model_name]
+            self.configurations_as_dict["model"]["parameters"] = self.supported_models[
+                model_name
+            ]
 
             self.run_an_experiment_from_config()
         self.app_logger.info("Pipeline - Pipeline executed successfully.")
