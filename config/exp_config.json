@@ -2,11 +2,11 @@
   "run":
           {
             "seed": 42,
-            "k_folds": 2,
-            "debug": true,
-            "test_size": 0.04,
-            "run_name": "COPERIA-ALL",
-            "path_to_save_experiment": "C:\\Users\\jmram\\OneDrive\\Documents\\GitHub\\coperia_tdd\\exp"
+            "k_folds": 5,
+            "debug": false,
+            "test_size": 1,
+            "run_name": "COPERIA-RF",
+            "path_to_save_experiment": "/home/visia/Documents/GitHub/coperia_sci/exp"
           },
   "model":
           {
@@ -26,8 +26,8 @@
           },
   "dataset":
           {
-            "path_to_csv": "C:\\Users\\jmram\\OneDrive\\Documents\\GitHub\\coperia_tdd\\data\\coperia_metadata.csv",
-            "raw_data_path": "D:\\Documentos\\work\\Proyectos\\2023_02_COPERIA\\COPERIA_DB\\dataset\\wav_48000kHz",
+            "path_to_csv": "/home/visia/Documents/GitHub/coperia_sci/data/coperia_metadata.csv",
+            "raw_data_path": "/home/visia/Documents/GitHub/coperia_sci/data/wav_48000kHz",
             "name": "COPERIA_DATASET",
             "column_with_ids": "audio_id",
             "column_with_target_class": "patient_id",
@@ -59,6 +59,6 @@
             "apply_vari_norm": true,
             "compute_deltas_feats": true,
             "compute_deltas_deltas_feats": true,
-            "compute_opensmile_extra_features": true
+            "compute_opensmile_extra_features": false
           }
 }
